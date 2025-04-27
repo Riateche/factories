@@ -1,77 +1,8 @@
-use std::collections::BTreeMap;
+mod game_data;
 
-use itertools::Itertools;
-use serde::{Deserialize, Deserializer, Serialize};
+use std::collections::BTreeSet;
 
-// Lua doesn't distinguish between empty arrays and empty objects, so empty arrays in recipes.json are serialized as {}.
-fn deserialize_array_or_object<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
-where
-    D: Deserializer<'de>,
-    T: Deserialize<'de>,
-{
-    #[derive(Deserialize)]
-    struct Empty {}
-
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum Untagged<T> {
-        Empty(Empty),
-        Array(Vec<T>),
-    }
-
-    let value = Untagged::<T>::deserialize(deserializer)?;
-    match value {
-        Untagged::Empty(_) => Ok(Vec::new()),
-        Untagged::Array(data) => Ok(data),
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Recipe {
-    pub name: String,
-    pub enabled: bool,
-    // ["crafting", "pressing", "crafting-with-fluid-or-metallurgy", "metallurgy", "electronics", "smelting", "recycling", "crafting-with-fluid",
-    //  "cryogenics", "metallurgy-or-assembling", "organic-or-assembling", "electronics-or-assembling", "cryogenics-or-assembling", "electromagnetics",
-    //  "oil-processing", "organic-or-chemistry", "chemistry", "chemistry-or-cryogenics", "electronics-with-fluid", "advanced-crafting",
-    //  "rocket-building", "centrifuging", "recycling-or-hand-crafting", "organic-or-hand-crafting", "organic", "captive-spawner-process",
-    //  "crushing", "parameters"]
-    pub category: String,
-    #[serde(deserialize_with = "deserialize_array_or_object")]
-    pub ingredients: Vec<Ingredient>,
-    #[serde(deserialize_with = "deserialize_array_or_object")]
-    pub products: Vec<Product>,
-    pub hidden: bool,
-    pub hidden_from_flow_stats: bool,
-    pub energy: f64,
-    // The string used to alphabetically sort these prototypes. It is a simple string that has no additional semantic meaning.
-    pub order: String,
-    pub productivity_bonus: f64,
-}
-
-// Skipped "fluidbox_index", "fluidbox_multiplier", "ignored_by_stats" properties
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Ingredient {
-    #[serde(rename = "type")]
-    pub type_: String, // item or fluid
-    pub name: String,
-    pub amount: u64,
-}
-
-// Skipped "fluidbox_index", "ignored_by_productivity", "ignored_by_stats", "percent_spoiled" properties
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Product {
-    pub amount: f64,
-    pub name: String,
-    #[serde(rename = "type")]
-    pub type_: String, // item or fluid
-    /// Probability that a craft will yield one additional product. Also applies to bonus crafts caused by productivity.
-    #[serde(default)]
-    pub extra_count_fraction: f64,
-    /// A value in range [0, 1]. Item is only given with this probability; otherwise no product is produced.
-    pub probability: f64,
-    #[serde(default)]
-    pub temperature: Option<f64>,
-}
+use game_data::GameData;
 
 // struct ItemSpeed {
 //     item: &'static str,
@@ -248,10 +179,14 @@ pub struct Product {
 // }
 fn main() -> anyhow::Result<()> {
     //rotors();
-    let recipes: BTreeMap<String, Recipe> =
-        serde_json::from_str(&fs_err::read_to_string("recipes.json")?)?;
-    let recipes = recipes.into_values().collect_vec();
+    let recipes: GameData = serde_json::from_str(&fs_err::read_to_string("game_data.json")?)?;
     println!("{recipes:#?}");
+
+    let mut set = BTreeSet::new();
+    for entity in recipes.entities.values() {
+        set.insert(&entity.type_);
+    }
+    println!("{set:?}");
 
     Ok(())
 }

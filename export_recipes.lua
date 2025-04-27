@@ -1,5 +1,5 @@
 --[[
-	Generates recipes.json from in-game API.
+	Generates game_data.json from in-game API.
 	To run it:
 	1. Open the in-game console (default key is ~).
 	2. Input
@@ -29,14 +29,52 @@ local recipe_properties = {
 }
 --[[ serialization doesn't work on custom lua values, so we'll convert them to tables ]]
 local recipes_table = {}
-local counter = 0
+local num_recipes = 0
 for k, recipe in pairs(game.player.force.recipes) do
   local recipe_table = {}
   for _, prop in pairs(recipe_properties) do
 	recipe_table[prop] = recipe[prop]
   end
   recipes_table[k] = recipe_table
-  counter = counter + 1
+  num_recipes = num_recipes + 1
 end
-helpers.write_file("recipes.json", helpers.table_to_json(recipes_table))
-game.player.print("Exported "..counter.." recipes to %appdata%\\Factorio\\script-output\\recipes.json")
+
+--[[ https://lua-api.factorio.com/latest/classes/LuaEntityPrototype.html ]]
+local entity_properties = {
+	"type",
+	"name",
+	"energy_usage",
+	--[[ CraftingMachine ]]
+	"crafting_categories",
+	"ingredient_count",
+	"max_item_product_count",
+	--[[ MiningDrill ]]
+	"mining_speed",
+	"resource_categories",
+	--[[ TransportBeltConnectable ]]
+	--[[ tiles per tick; throughput per second = belt_speed * 60 (ticks/s) * 8 (density) ]]
+	"belt_speed",
+}
+local entities_table = {}
+local num_entities = 0
+for k, entity in pairs(prototypes.entity) do
+	if entity.crafting_categories or entity.mining_speed or entity.belt_speed then
+		local entity_table = {}
+		for _, prop in pairs(entity_properties) do
+			entity_table[prop] = entity[prop]
+		end
+		if entity.crafting_categories then
+			entity_table["crafting_speed"] = entity.get_crafting_speed()
+		end
+		entities_table[k] = entity_table
+		num_entities = num_entities + 1
+	end
+end
+
+local data = {
+	recipes = recipes_table,
+	entities = entities_table,
+}
+
+helpers.write_file("game_data.json", helpers.table_to_json(data))
+game.player.print("Exported "..num_recipes.." recipes and "..num_entities.." entities to %appdata%\\Factorio\\script-output\\game_data.json")
