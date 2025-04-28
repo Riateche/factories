@@ -84,6 +84,17 @@ pub struct Entity {
     pub mining_speed: Option<f64>,
     pub resource_categories: Option<BTreeMap<String, bool>>,
     pub belt_speed: Option<f64>,
+    pub mineable_properties: Option<MineableProperties>,
+    pub resource_category: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MineableProperties {
+    pub mining_time: f64,
+    #[serde(deserialize_with = "deserialize_array_or_object")]
+    pub products: Vec<Product>,
+    pub fluid_amount: Option<f64>,
+    pub required_fluid: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

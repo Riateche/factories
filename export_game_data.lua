@@ -54,17 +54,36 @@ local entity_properties = {
 	--[[ TransportBeltConnectable ]]
 	--[[ tiles per tick; throughput per second = belt_speed * 60 (ticks/s) * 8 (density) ]]
 	"belt_speed",
+	--[[ ResourceEntity ]]
+	"resource_category",
+	--[[ OffshorePump ]]
+	"pumping_speed",
 }
 local entities_table = {}
 local num_entities = 0
 for k, entity in pairs(prototypes.entity) do
-	if entity.crafting_categories or entity.mining_speed or entity.belt_speed then
+	if entity.crafting_categories or
+		entity.mining_speed or
+		entity.pumping_speed or
+		entity.type == "transport-belt"
+		or entity.type == "resource"
+		or entity.type == "plant"
+		or entity.type == "tree"
+	then
 		local entity_table = {}
 		for _, prop in pairs(entity_properties) do
 			entity_table[prop] = entity[prop]
 		end
-		if entity.crafting_categories then
+		if entity.type == "transport-belt" then
 			entity_table["crafting_speed"] = entity.get_crafting_speed()
+		end
+		if entity.type == "resource" or entity.type == "plant" or entity.type == "tree"  then
+			entity_table.mineable_properties = {
+				mining_time = entity.mineable_properties.mining_time,
+				products = entity.mineable_properties.products,
+				fluid_amount = entity.mineable_properties.fluid_amount,
+				required_fluid = entity.mineable_properties.required_fluid,
+			}
 		end
 		entities_table[k] = entity_table
 		num_entities = num_entities + 1
