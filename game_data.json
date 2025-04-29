@@ -22700,7 +22700,8 @@
                 "smelting": true
             },
             "ingredient_count": 1,
-            "max_item_product_count": 1
+            "max_item_product_count": 1,
+            "crafting_speed": 1
         },
         "steel-furnace": {
             "type": "furnace",
@@ -22710,7 +22711,8 @@
                 "smelting": true
             },
             "ingredient_count": 1,
-            "max_item_product_count": 1
+            "max_item_product_count": 1,
+            "crafting_speed": 2
         },
         "electric-furnace": {
             "type": "furnace",
@@ -22720,7 +22722,8 @@
                 "smelting": true
             },
             "ingredient_count": 1,
-            "max_item_product_count": 1
+            "max_item_product_count": 1,
+            "crafting_speed": 2
         },
         "foundry": {
             "type": "assembling-machine",
@@ -22734,7 +22737,8 @@
                 "parameters": true
             },
             "ingredient_count": 65535,
-            "max_item_product_count": 65535
+            "max_item_product_count": 65535,
+            "crafting_speed": 4
         },
         "recycler": {
             "type": "furnace",
@@ -22745,7 +22749,8 @@
                 "recycling-or-hand-crafting": true
             },
             "ingredient_count": 1,
-            "max_item_product_count": 12
+            "max_item_product_count": 12,
+            "crafting_speed": 0.5
         },
         "biochamber": {
             "type": "assembling-machine",
@@ -22759,7 +22764,8 @@
                 "parameters": true
             },
             "ingredient_count": 65535,
-            "max_item_product_count": 65535
+            "max_item_product_count": 65535,
+            "crafting_speed": 2
         },
         "captive-biter-spawner": {
             "type": "assembling-machine",
@@ -22770,7 +22776,8 @@
                 "parameters": true
             },
             "ingredient_count": 65535,
-            "max_item_product_count": 65535
+            "max_item_product_count": 65535,
+            "crafting_speed": 1
         },
         "assembling-machine-1": {
             "type": "assembling-machine",
@@ -22785,7 +22792,8 @@
                 "parameters": true
             },
             "ingredient_count": 65535,
-            "max_item_product_count": 65535
+            "max_item_product_count": 65535,
+            "crafting_speed": 0.5
         },
         "assembling-machine-2": {
             "type": "assembling-machine",
@@ -22808,7 +22816,8 @@
                 "parameters": true
             },
             "ingredient_count": 65535,
-            "max_item_product_count": 65535
+            "max_item_product_count": 65535,
+            "crafting_speed": 0.75
         },
         "assembling-machine-3": {
             "type": "assembling-machine",
@@ -22831,7 +22840,8 @@
                 "parameters": true
             },
             "ingredient_count": 65535,
-            "max_item_product_count": 65535
+            "max_item_product_count": 65535,
+            "crafting_speed": 1.25
         },
         "oil-refinery": {
             "type": "assembling-machine",
@@ -22842,7 +22852,8 @@
                 "parameters": true
             },
             "ingredient_count": 65535,
-            "max_item_product_count": 65535
+            "max_item_product_count": 65535,
+            "crafting_speed": 1
         },
         "chemical-plant": {
             "type": "assembling-machine",
@@ -22855,7 +22866,8 @@
                 "parameters": true
             },
             "ingredient_count": 65535,
-            "max_item_product_count": 65535
+            "max_item_product_count": 65535,
+            "crafting_speed": 1
         },
         "centrifuge": {
             "type": "assembling-machine",
@@ -22866,7 +22878,8 @@
                 "parameters": true
             },
             "ingredient_count": 65535,
-            "max_item_product_count": 65535
+            "max_item_product_count": 65535,
+            "crafting_speed": 1
         },
         "electromagnetic-plant": {
             "type": "assembling-machine",
@@ -22880,7 +22893,8 @@
                 "parameters": true
             },
             "ingredient_count": 65535,
-            "max_item_product_count": 65535
+            "max_item_product_count": 65535,
+            "crafting_speed": 2
         },
         "cryogenic-plant": {
             "type": "assembling-machine",
@@ -22893,7 +22907,8 @@
                 "parameters": true
             },
             "ingredient_count": 65535,
-            "max_item_product_count": 65535
+            "max_item_product_count": 65535,
+            "crafting_speed": 2
         },
         "rocket-silo": {
             "type": "rocket-silo",
@@ -22904,7 +22919,8 @@
                 "parameters": true
             },
             "ingredient_count": 65535,
-            "max_item_product_count": 65535
+            "max_item_product_count": 65535,
+            "crafting_speed": 1
         },
         "crusher": {
             "type": "assembling-machine",
@@ -22915,7 +22931,8 @@
                 "parameters": true
             },
             "ingredient_count": 65535,
-            "max_item_product_count": 65535
+            "max_item_product_count": 65535,
+            "crafting_speed": 1
         },
         "tree-plant": {
             "type": "plant",

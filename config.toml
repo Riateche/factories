@@ -1,0 +1,7 @@
+
+
+# "electric-furnace", "steel-furnace" or "stone-furnace"
+furnace_type = "steel-furnace"
+
+# "assembling-machine-1", "assembling-machine-2" or "assembling-machine-3"
+assembler_type = "assembling-machine-2"

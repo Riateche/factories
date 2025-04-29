@@ -53,7 +53,7 @@ pub struct Ingredient {
     #[serde(rename = "type")]
     pub type_: String, // item or fluid
     pub name: String,
-    pub amount: u64,
+    pub amount: f64,
 }
 
 // Skipped "fluidbox_index", "ignored_by_productivity", "ignored_by_stats", "percent_spoiled" properties
@@ -79,6 +79,7 @@ pub struct Entity {
     pub name: String,
     pub energy_usage: Option<f64>,
     pub crafting_categories: Option<BTreeMap<String, bool>>,
+    pub crafting_speed: Option<f64>,
     pub ingredient_count: Option<u64>,
     pub max_item_product_count: Option<u64>,
     pub mining_speed: Option<f64>,
@@ -101,4 +102,11 @@ pub struct MineableProperties {
 pub struct GameData {
     pub recipes: BTreeMap<String, Recipe>,
     pub entities: BTreeMap<String, Entity>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Crafter {
+    pub name: String,
+    pub energy_usage: f64,
+    pub crafting_speed: f64,
 }

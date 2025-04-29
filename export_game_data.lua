@@ -74,7 +74,7 @@ for k, entity in pairs(prototypes.entity) do
 		for _, prop in pairs(entity_properties) do
 			entity_table[prop] = entity[prop]
 		end
-		if entity.type == "transport-belt" then
+		if entity.crafting_categories then
 			entity_table["crafting_speed"] = entity.get_crafting_speed()
 		end
 		if entity.type == "resource" or entity.type == "plant" or entity.type == "tree"  then
