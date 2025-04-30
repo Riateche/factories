@@ -1,9 +1,9 @@
 use factories::prelude::*;
 
 fn main() -> Result<()> {
-    let p = init()?;
-    let m = p.create_machine("transport-belt")?;
-    m.print_io();
+    let mut p = init()?;
+    p.create_machine("transport-belt")?;
+    p.show_machines();
 
     Ok(())
 }

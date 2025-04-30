@@ -1,10 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use anyhow::{bail, Context};
+use anyhow::{bail, format_err, Context};
 use config::Config;
-use game_data::{Crafter, GameData};
+use game_data::{Crafter, GameData, Ingredient, Product, Recipe};
 use itertools::Itertools;
 use machine::Machine;
+use nalgebra::{DMatrix, DVector};
 
 mod config;
 mod game_data;
@@ -18,6 +19,8 @@ pub struct Planner {
     reachable_items: BTreeSet<String>,
     crafters: BTreeMap<String, Crafter>,
     category_to_crafter: BTreeMap<String, Vec<String>>,
+    machines: Vec<Machine>,
+    constraints: Vec<Constraint>,
 }
 
 pub fn init() -> anyhow::Result<Planner> {
@@ -166,23 +169,90 @@ pub fn init() -> anyhow::Result<Planner> {
         reachable_items,
         crafters,
         category_to_crafter,
+        machines: Vec::new(),
+        constraints: Vec::new(),
     })
 }
 
 impl Planner {
-    pub fn create_machine(&self, recipe: &str) -> anyhow::Result<Machine> {
+    pub fn create_machine(&mut self, recipe: &str) -> anyhow::Result<()> {
         self.create_machine_ext(recipe, None)
     }
 
+    pub fn create_source(&mut self, item: &str) -> anyhow::Result<()> {
+        if !self.all_items.contains(item) {
+            bail!("unknown item: {item:?}");
+        }
+        self.machines.push(Machine {
+            crafter: Crafter {
+                name: "source".into(),
+                energy_usage: 0.0,
+                crafting_speed: 1.0,
+            },
+            crafter_count: 1.0,
+            recipe: Recipe {
+                name: format!("{item}-source"),
+                enabled: true,
+                category: "source".into(),
+                ingredients: Vec::new(),
+                products: vec![Product {
+                    amount: 1.0,
+                    name: item.into(),
+                    type_: String::new(),
+                    extra_count_fraction: 0.0,
+                    probability: 1.0,
+                    temperature: None,
+                }],
+                hidden: false,
+                hidden_from_flow_stats: false,
+                energy: 1.0,
+                order: String::new(),
+                productivity_bonus: 0.0,
+            },
+        });
+        Ok(())
+    }
+
+    pub fn create_sink(&mut self, item: &str) -> anyhow::Result<()> {
+        if !self.all_items.contains(item) {
+            bail!("unknown item: {item:?}");
+        }
+        self.machines.push(Machine {
+            crafter: Crafter {
+                name: "sink".into(),
+                energy_usage: 0.0,
+                crafting_speed: 1.0,
+            },
+            crafter_count: 1.0,
+            recipe: Recipe {
+                name: format!("{item}-sink"),
+                enabled: true,
+                category: "sink".into(),
+                ingredients: vec![Ingredient {
+                    amount: 1.0,
+                    name: item.into(),
+                    type_: String::new(),
+                }],
+                products: Vec::new(),
+                hidden: false,
+                hidden_from_flow_stats: false,
+                energy: 1.0,
+                order: String::new(),
+                productivity_bonus: 0.0,
+            },
+        });
+        Ok(())
+    }
+
     pub fn create_machine_with_crafter(
-        &self,
+        &mut self,
         recipe: &str,
         crafter: &str,
-    ) -> anyhow::Result<Machine> {
+    ) -> anyhow::Result<()> {
         self.create_machine_ext(recipe, Some(crafter))
     }
 
-    fn create_machine_ext(&self, recipe: &str, crafter: Option<&str>) -> anyhow::Result<Machine> {
+    fn create_machine_ext(&mut self, recipe: &str, crafter: Option<&str>) -> anyhow::Result<()> {
         let recipe = self
             .game_data
             .recipes
@@ -213,13 +283,15 @@ impl Planner {
             .get(&crafter)
             .with_context(|| format!("crafter not found: {crafter:?}"))?
             .clone();
-        println!("selected crafter: {crafter:?}");
-        //recipe.category
-        Ok(Machine {
+        if false {
+            println!("selected crafter: {crafter:?}");
+        }
+        self.machines.push(Machine {
             crafter,
             crafter_count: 1.0,
             recipe,
-        })
+        });
+        Ok(())
     }
 
     pub fn list_ambigous_sources(&self) {
@@ -256,6 +328,139 @@ impl Planner {
             println!("{}: {}     {:?}", category, crafters.len(), crafters);
         }
     }
+
+    pub fn show_machines(&self) {
+        println!();
+        let inputs = self
+            .machines
+            .iter()
+            .filter(|m| m.crafter.name == "source")
+            .flat_map(|m| m.item_speeds())
+            .collect_vec();
+        println!(
+            "Inputs: {}",
+            inputs
+                .iter()
+                .map(|i| { format!("{}/s {}", rf(i.speed), i.item) })
+                .join(" + ")
+        );
+
+        for machine in &self.machines {
+            if machine.crafter.name != "source" && machine.crafter.name != "sink" {
+                machine.print_io();
+            }
+        }
+
+        let outputs = self
+            .machines
+            .iter()
+            .filter(|m| m.crafter.name == "sink")
+            .flat_map(|m| m.item_speeds())
+            .collect_vec();
+        println!(
+            "Outputs: {}",
+            outputs
+                .iter()
+                .map(|i| { format!("{}/s {}", rf(-i.speed), i.item) })
+                .join(" + ")
+        );
+        println!();
+    }
+
+    pub fn add_constraint(&mut self, item: &str, speed: f64) -> anyhow::Result<()> {
+        if !self.all_items.contains(item) {
+            bail!("unknown item: {item:?}");
+        }
+        self.constraints.push(Constraint::ItemProduction {
+            item: item.into(),
+            speed,
+        });
+        Ok(())
+    }
+
+    pub fn solve(&mut self) -> anyhow::Result<()> {
+        /*
+            Ax = b
+           vector row = matrix row = index of equation = index of constraint
+           matrix column = index of variable = index of machine
+        */
+
+        for machine in &mut self.machines {
+            machine.crafter_count = 1.0;
+        }
+        let items: BTreeSet<_> = self
+            .machines
+            .iter()
+            .flat_map(|m| {
+                m.recipe
+                    .ingredients
+                    .iter()
+                    .map(|i| &i.name)
+                    .chain(m.recipe.products.iter().map(|i| &i.name))
+            })
+            .collect();
+        let constraints: Vec<_> = items
+            .iter()
+            .map(|item| Constraint::ItemSumsToZero {
+                item: item.to_string(),
+            })
+            .chain(self.constraints.iter().cloned())
+            .collect();
+
+        let a = DMatrix::from_fn(constraints.len(), self.machines.len(), |row, col| {
+            let machine = &self.machines[col];
+            match &constraints[row] {
+                Constraint::ItemSumsToZero { item } => machine
+                    .item_speeds()
+                    .into_iter()
+                    .filter(|i| &i.item == item)
+                    .map(|i| i.speed)
+                    .sum::<f64>(),
+                Constraint::ItemProduction { item, speed: _ } => machine
+                    .item_speeds()
+                    .into_iter()
+                    .filter(|i| &i.item == item && i.speed > 0.0)
+                    .map(|i| i.speed)
+                    .sum::<f64>(),
+            }
+        });
+        let b = DVector::from_fn(constraints.len(), |row, _| match &constraints[row] {
+            Constraint::ItemSumsToZero { item: _ } => 0.0,
+            Constraint::ItemProduction { item: _, speed } => *speed,
+        });
+        if false {
+            println!("constraints: {constraints:?}");
+            println!("a=");
+            for row in a.row_iter() {
+                println!("{:?}", row.iter().collect_vec());
+            }
+            println!("b={b:?}");
+        }
+
+        let svd = a.svd(true, true);
+        let output = svd
+            .solve(&b, f64::EPSILON)
+            .map_err(|str| format_err!("{str}"))?;
+        if false {
+            println!("output {output:?}");
+        }
+
+        if output.iter().all(|v| *v == 0.0) {
+            bail!("solve result is zero, probably missing machines or constraints");
+        }
+
+        for (machine, output_item) in self.machines.iter_mut().zip_eq(output.iter()) {
+            machine.crafter_count = *output_item;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+enum Constraint {
+    ItemSumsToZero { item: String },
+    ItemProduction { item: String, speed: f64 },
 }
 
 /*
@@ -267,3 +472,8 @@ key_values = {}; for (k in v) { if (!Array.isArray(v[k].ingredients)) { continue
 
 key_values = {}; for (kk in v) { let item = v[kk]; for (k in item) { if (k == "ingredients" || k == "products") { continue; };  if (!key_values[k]) { key_values[k] = new Set(); } key_values[k].add(item[k]); } }; for (k in key_values) console.log(k, [...key_values[k]])
 */
+
+// round float
+pub fn rf(f: f64) -> f64 {
+    (f * 100.0).round() / 100.0
+}
