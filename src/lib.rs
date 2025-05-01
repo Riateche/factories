@@ -20,7 +20,7 @@ pub struct Planner {
     crafters: BTreeMap<String, Crafter>,
     category_to_crafter: BTreeMap<String, Vec<String>>,
     pub machines: Vec<Machine>,
-    constraints: Vec<Constraint>,
+    pub constraints: Vec<Constraint>,
 }
 
 pub fn init() -> anyhow::Result<Planner> {
@@ -378,6 +378,19 @@ impl Planner {
         Ok(())
     }
 
+    pub fn added_items(&self) -> BTreeSet<String> {
+        self.machines
+            .iter()
+            .flat_map(|m| {
+                m.recipe
+                    .ingredients
+                    .iter()
+                    .map(|i| i.name.to_string())
+                    .chain(m.recipe.products.iter().map(|i| i.name.to_string()))
+            })
+            .collect()
+    }
+
     pub fn solve(&mut self) -> anyhow::Result<()> {
         /*
             Ax = b
@@ -388,17 +401,7 @@ impl Planner {
         for machine in &mut self.machines {
             machine.crafter_count = 1.0;
         }
-        let items: BTreeSet<_> = self
-            .machines
-            .iter()
-            .flat_map(|m| {
-                m.recipe
-                    .ingredients
-                    .iter()
-                    .map(|i| &i.name)
-                    .chain(m.recipe.products.iter().map(|i| &i.name))
-            })
-            .collect();
+        let items = self.added_items();
         let constraints: Vec<_> = items
             .iter()
             .map(|item| Constraint::ItemSumsToZero {
@@ -439,7 +442,7 @@ impl Planner {
 
         let svd = a.svd(true, true);
         let output = svd
-            .solve(&b, f64::EPSILON)
+            .solve(&b, 0.000001)
             .map_err(|str| format_err!("{str}"))?;
         if false {
             println!("output {output:?}");
@@ -455,10 +458,31 @@ impl Planner {
 
         Ok(())
     }
+
+    pub fn add_sources_and_sinks(&mut self) {
+        self.machines
+            .retain(|m| m.crafter.name != "source" && m.crafter.name != "sink");
+        let items = self.added_items();
+        for item in items {
+            let any_inputs = self
+                .machines
+                .iter()
+                .any(|m| m.recipe.ingredients.iter().any(|i| i.name == item));
+            let any_outputs = self
+                .machines
+                .iter()
+                .any(|m| m.recipe.products.iter().any(|i| i.name == item));
+            if any_inputs && !any_outputs {
+                self.create_source(&item).unwrap();
+            } else if !any_inputs && any_outputs {
+                self.create_sink(&item).unwrap();
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
-enum Constraint {
+pub enum Constraint {
     ItemSumsToZero { item: String },
     ItemProduction { item: String, speed: f64 },
 }

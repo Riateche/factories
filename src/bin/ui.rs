@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use eframe::egui::{self, Color32};
-use factories::prelude::*;
+use eframe::egui::{self, Color32, ComboBox};
+use factories::{prelude::*, Constraint};
 
 use egui::{
     text::{CCursor, CCursorRange},
@@ -193,6 +193,8 @@ fn main() -> eframe::Result {
                 auto_focus: true,
                 alerts: Vec::new(),
                 selected_machine: 0,
+                item_speed_contraint_item: String::new(),
+                item_speed_contraint_speed: String::new(),
             }))
         }),
     )
@@ -204,6 +206,8 @@ struct MyApp {
     alerts: Vec<String>,
     auto_focus: bool,
     selected_machine: usize,
+    item_speed_contraint_item: String,
+    item_speed_contraint_speed: String,
 }
 
 impl eframe::App for MyApp {
@@ -237,19 +241,91 @@ impl eframe::App for MyApp {
                             self.alerts.push(err.to_string());
                         }
                         Ok(()) => {
+                            self.planner.add_sources_and_sinks();
                             self.recipe_search_text.clear();
                         }
                     }
                 }
             });
 
-            ScrollArea::vertical().show(ui, |ui| {
-                for (i, machine) in self.planner.machines.iter().enumerate() {
-                    if ui
-                        .selectable_label(self.selected_machine == i, machine.io_text())
-                        .clicked()
-                    {
-                        self.selected_machine = i;
+            ui.heading("Machines");
+            egui::Frame::group(ui.style()).show(ui, |ui| {
+                ScrollArea::vertical().show(ui, |ui| {
+                    for (i, machine) in self.planner.machines.iter().enumerate() {
+                        if ui
+                            .selectable_label(self.selected_machine == i, machine.io_text())
+                            .clicked()
+                        {
+                            self.selected_machine = i;
+                        }
+                    }
+                });
+            });
+
+            ui.heading("Constraints");
+
+            egui::Frame::group(ui.style()).show(ui, |ui| {
+                let mut constraint_to_delete = None;
+                for (i, constraint) in self.planner.constraints.iter().enumerate() {
+                    match constraint {
+                        Constraint::ItemSumsToZero { .. } => unreachable!(),
+                        Constraint::ItemProduction { item, speed } => {
+                            ui.horizontal(|ui| {
+                                ui.label(format!("{}: {}/s", item, speed));
+                                if ui.button("X").clicked() {
+                                    constraint_to_delete = Some(i);
+                                }
+                            });
+                        }
+                    }
+                }
+                if let Some(index) = constraint_to_delete {
+                    self.planner.constraints.remove(index);
+                    if let Err(err) = self.planner.solve() {
+                        self.alerts.push(err.to_string());
+                    }
+                }
+
+                ui.horizontal(|ui| {
+                    ui.label("Add item speed constraint: ");
+                    ComboBox::new("constaint_item", "")
+                        .selected_text(&self.item_speed_contraint_item)
+                        .show_ui(ui, |ui| {
+                            for item in self.planner.added_items() {
+                                ui.selectable_value(
+                                    &mut self.item_speed_contraint_item,
+                                    item.clone(),
+                                    item,
+                                );
+                            }
+                        });
+                    let speed_label = ui.label("Speed: ");
+                    TextEdit::singleline(&mut self.item_speed_contraint_speed)
+                        .desired_width(100.0)
+                        .ui(ui)
+                        .labelled_by(speed_label.id);
+                    ui.label("/s");
+                    if ui.button("Add").clicked() {
+                        let r = self
+                            .item_speed_contraint_speed
+                            .parse()
+                            .map_err(Error::from)
+                            .and_then(|speed| {
+                                self.planner
+                                    .add_constraint(&self.item_speed_contraint_item, speed)
+                            })
+                            .and_then(|()| self.planner.solve());
+                        if let Err(err) = r {
+                            self.alerts.push(err.to_string());
+                        }
+                    }
+                });
+            });
+
+            ui.horizontal(|ui| {
+                if ui.button("Solve").clicked() {
+                    if let Err(err) = self.planner.solve() {
+                        self.alerts.push(err.to_string());
                     }
                 }
             });

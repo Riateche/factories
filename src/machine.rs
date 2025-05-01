@@ -65,12 +65,25 @@ impl Machine {
             })
             .join(" + ");
 
+        let inputs = if inputs.is_empty() {
+            String::new()
+        } else {
+            format!("{} -> ", inputs)
+        };
+        let outputs = if outputs.is_empty() {
+            String::new()
+        } else {
+            format!(" -> {}", outputs)
+        };
+        let crafter_count = if self.crafter.name == "source" || self.crafter.name == "sink" {
+            String::new()
+        } else {
+            format!("{} × ", rf(self.crafter_count))
+        };
+
         format!(
-            "{} -> [{} × {}] -> {}",
-            inputs,
-            rf(self.crafter_count),
-            self.crafter.name,
-            outputs
+            "{}[{}{}]{}",
+            inputs, crafter_count, self.crafter.name, outputs
         )
     }
 }
