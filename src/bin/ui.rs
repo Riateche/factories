@@ -1,13 +1,19 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
+#![allow(clippy::collapsible_if)]
 
 use eframe::egui::{self, Color32, ComboBox};
-use factories::prelude::*;
+use factories::{game_data::Recipe, prelude::*, rf};
 
+use anyhow::format_err;
 use egui::{
     text::{CCursor, CCursorRange},
     Id, Response, ScrollArea, TextEdit, Ui, Widget, WidgetText,
 };
-use std::hash::Hash;
+use itertools::Itertools;
+use ordered_float::OrderedFloat;
+use std::{cmp::min, hash::Hash};
+use std::{collections::VecDeque, fmt::Write};
+use url::Url;
 
 /// Dropdown widget
 pub struct DropDownBox<
@@ -178,24 +184,34 @@ impl<F: FnMut(&mut Ui, &str) -> Response, V: AsRef<str>, I: Iterator<Item = V>> 
 fn main() -> eframe::Result {
     //env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([800.0, 600.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([1024.0, 768.0]),
         ..Default::default()
     };
+    let mut app = MyApp {
+        planner: init().unwrap(),
+        recipe_search_text: String::new(),
+        auto_focus: true,
+        alerts: Vec::new(),
+        selected_machine: 0,
+        item_speed_contraint_item: String::new(),
+        item_speed_contraint_speed: String::new(),
+        machine_count_constraint: String::new(),
+        all_recipe_menu_items: Vec::new(),
+    };
+    app.all_recipe_menu_items = app
+        .planner
+        .game_data
+        .recipes
+        .values()
+        .flat_map(|recipe| app.recipe_menu_items(recipe))
+        .collect();
     eframe::run_native(
         "Factories",
         options,
         Box::new(|cc| {
+            cc.egui_ctx.set_pixels_per_point(1.25);
             egui_extras::install_image_loaders(&cc.egui_ctx);
-            Ok(Box::new(MyApp {
-                planner: init().unwrap(),
-                recipe_search_text: String::new(),
-                auto_focus: true,
-                alerts: Vec::new(),
-                selected_machine: 0,
-                item_speed_contraint_item: String::new(),
-                item_speed_contraint_speed: String::new(),
-                machine_count_constraint: String::new(),
-            }))
+            Ok(Box::new(app))
         }),
     )
 }
@@ -209,6 +225,177 @@ struct MyApp {
     item_speed_contraint_item: String,
     item_speed_contraint_speed: String,
     machine_count_constraint: String,
+    all_recipe_menu_items: Vec<String>,
+}
+
+impl MyApp {
+    fn add_recipe(&mut self, text: &str) {
+        let add_auto_constraint =
+            self.planner.machines.is_empty() && self.planner.item_speed_constraints.is_empty();
+
+        let mut r = if let Some((recipe, machine)) = text.split_once(" @ ") {
+            self.planner.create_machine_with_crafter(recipe, machine)
+        } else {
+            self.planner.create_machine(text)
+        };
+        if add_auto_constraint {
+            self.planner.machines[0].count_constraint = Some(1.0);
+        }
+        r = r.and_then(|()| self.planner.auto_refresh());
+        match r {
+            Err(err) => {
+                self.alerts.push(err.to_string());
+            }
+            Ok(()) => {
+                self.recipe_search_text.clear();
+            }
+        }
+    }
+
+    fn recipe_menu_items(&self, recipe: &Recipe) -> Vec<String> {
+        // let recipe_text = if recipe.products.len() != 1 || recipe.products[0].name != recipe.name {
+        //     format!(
+        //         "{} ({} ➡ {})",
+        //         recipe.name,
+        //         recipe.ingredients.iter().map(|i| &i.name).join(" + "),
+        //         recipe.products.iter().map(|i| &i.name).join(" + "),
+        //     )
+        // } else {
+        //     recipe.name.clone()
+        // };
+
+        let crafters = self
+            .planner
+            .category_to_crafter
+            .get(&recipe.category)
+            .expect("missing item in category_to_crafter");
+
+        if self.planner.auto_select_crafter(crafters).is_some() {
+            vec![recipe.name.clone()]
+        } else {
+            crafters
+                .iter()
+                .map(move |crafter| format!("{} @ {}", &recipe.name, crafter))
+                .collect()
+        }
+    }
+
+    fn generate_chart(&self) -> String {
+        let mut out = format!(
+            "--- \n\
+            title: {}\n\
+            --- \n\
+            flowchart TD \n",
+            "Untitled Factory"
+        );
+        for (index, machine) in self.planner.machines.iter().enumerate() {
+            writeln!(
+                out,
+                r#"    machine{}["{}{}"]"#,
+                index,
+                if machine.crafter.name == "source" || machine.crafter.name == "sink" {
+                    String::new()
+                } else {
+                    format!("{} × ", rf(machine.crafter_count))
+                },
+                machine.crafter.name
+            )
+            .unwrap();
+        }
+
+        let all_items = self.planner.added_items();
+        for item in all_items {
+            let sources = self
+                .planner
+                .machines
+                .iter()
+                .enumerate()
+                .filter_map(|(machine_index, machine)| {
+                    machine
+                        .item_speeds()
+                        .into_iter()
+                        .find(|item_speed| item_speed.item == item && item_speed.speed > 0.0)
+                        .map(|item_speed| (machine_index, item_speed.speed))
+                })
+                .collect_vec();
+
+            let mut destinations: VecDeque<_> = self
+                .planner
+                .machines
+                .iter()
+                .enumerate()
+                .filter_map(|(machine_index, machine)| {
+                    machine
+                        .item_speeds()
+                        .into_iter()
+                        .find(|item_speed| item_speed.item == item && item_speed.speed < 0.0)
+                        .map(|item_speed| (machine_index, -item_speed.speed))
+                })
+                .collect();
+
+            let epsilon = 0.001;
+            'outer: for (source_machine, source_speed) in sources {
+                let mut remaining_speed = source_speed;
+                loop {
+                    let Some((destination_machine, destination_speed)) = destinations.front_mut()
+                    else {
+                        println!(
+                            "WARN: unable to allocate remaining {}/s {} to destinations",
+                            item, remaining_speed
+                        );
+                        break 'outer;
+                    };
+                    let current_speed = min(
+                        OrderedFloat(remaining_speed),
+                        OrderedFloat(*destination_speed),
+                    )
+                    .0;
+                    writeln!(
+                        out,
+                        "    machine{}-->|{}/s {}|machine{}",
+                        source_machine,
+                        rf(current_speed),
+                        item,
+                        destination_machine
+                    )
+                    .unwrap();
+                    *destination_speed -= current_speed;
+                    if *destination_speed < epsilon {
+                        destinations.pop_front().unwrap();
+                    }
+                    remaining_speed -= current_speed;
+                    if remaining_speed < epsilon {
+                        break; // Move on to the next source machine.
+                    }
+                }
+            }
+            if destinations.len() > 2
+                || destinations
+                    .front()
+                    .is_some_and(|(_, speed)| *speed > epsilon)
+            {
+                println!(
+                    "WARN: not all destinations of {} are satisfied: {:?}",
+                    item, destinations
+                );
+            }
+        }
+        out
+    }
+
+    fn open_chart(&self) -> anyhow::Result<()> {
+        let chart = self.generate_chart();
+
+        let template = include_str!("../../mermaid.html");
+        let html = template.replacen("$1", &chart, 1);
+        fs_err::create_dir_all("mermaid")?;
+        let file_path = std::env::current_dir()?.join("mermaid/file1.html");
+        fs_err::write(&file_path, html)?;
+        let url = Url::from_file_path(file_path)
+            .map_err(|()| format_err!("Url::from_file_path failed"))?;
+        open::that(url.as_str())?;
+        Ok(())
+    }
 }
 
 impl eframe::App for MyApp {
@@ -224,33 +411,8 @@ impl eframe::App for MyApp {
             ui.horizontal(|ui| {
                 ui.label("Add a recipe:");
 
-                let recipes_iter = self.planner.game_data.recipes.values().flat_map(|recipe| {
-                    let crafters = self
-                        .planner
-                        .category_to_crafter
-                        .get(&recipe.category)
-                        .expect("missing item in category_to_crafter");
-
-                    let crafters = if let Some(crafter) = self.planner.auto_select_crafter(crafters)
-                    {
-                        vec![crafter]
-                    } else {
-                        crafters.clone()
-                    };
-
-                    let auto_select_crafter = crafters.len() == 1;
-
-                    crafters.into_iter().map(move |crafter| {
-                        if auto_select_crafter {
-                            recipe.name.clone()
-                        } else {
-                            format!("{} @ {}", recipe.name, crafter)
-                        }
-                    })
-                });
-
                 let r = DropDownBox::from_iter(
-                    recipes_iter,
+                    &self.all_recipe_menu_items,
                     "recipe",
                     &mut self.recipe_search_text,
                     |ui, text| ui.selectable_label(false, text),
@@ -262,23 +424,67 @@ impl eframe::App for MyApp {
                 }
 
                 if r.committed {
-                    println!("adding {}", self.recipe_search_text);
-                    let r = if let Some((recipe, machine)) =
-                        self.recipe_search_text.split_once(" @ ")
-                    {
-                        self.planner.create_machine_with_crafter(recipe, machine)
-                    } else {
-                        self.planner.create_machine(&self.recipe_search_text)
-                    };
-                    match r {
-                        Err(err) => {
-                            self.alerts.push(err.to_string());
+                    self.add_recipe(&self.recipe_search_text.clone());
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("Replace source with craft:");
+                let mut text = String::new();
+                ComboBox::new("replace_source_item", "")
+                    .selected_text(&text)
+                    .show_ui(ui, |ui| {
+                        for machine in &self.planner.machines {
+                            if machine.crafter.name == "source" {
+                                let item = &machine.recipe.products[0].name;
+                                let recipes = self
+                                    .planner
+                                    .game_data
+                                    .recipes
+                                    .values()
+                                    .filter(|recipe| {
+                                        recipe.category != "recycling"
+                                            && recipe.category != "recycling-or-hand-crafting"
+                                            && recipe.products.iter().any(|p| &p.name == item)
+                                    })
+                                    .flat_map(|recipe| self.recipe_menu_items(recipe));
+                                for recipe in recipes {
+                                    ui.selectable_value(&mut text, recipe.clone(), &recipe);
+                                }
+                            }
                         }
-                        Ok(()) => {
-                            self.planner.add_sources_and_sinks();
-                            self.recipe_search_text.clear();
+                    });
+                if !text.is_empty() {
+                    self.add_recipe(&text);
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("Replace sink with craft:");
+                let mut text = String::new();
+                ComboBox::new("replace_sink_item", "")
+                    .selected_text(&text)
+                    .show_ui(ui, |ui| {
+                        for machine in &self.planner.machines {
+                            if machine.crafter.name == "sink" {
+                                let item = &machine.recipe.ingredients[0].name;
+                                let recipes = self
+                                    .planner
+                                    .game_data
+                                    .recipes
+                                    .values()
+                                    .filter(|recipe| {
+                                        recipe.category != "recycling"
+                                            && recipe.category != "recycling-or-hand-crafting"
+                                            && recipe.ingredients.iter().any(|p| &p.name == item)
+                                    })
+                                    .flat_map(|recipe| self.recipe_menu_items(recipe));
+                                for recipe in recipes {
+                                    ui.selectable_value(&mut text, recipe.clone(), &recipe);
+                                }
+                            }
                         }
-                    }
+                    });
+                if !text.is_empty() {
+                    self.add_recipe(&text);
                 }
             });
 
@@ -295,30 +501,43 @@ impl eframe::App for MyApp {
                     }
                 });
             });
-            if ui.button("Remove").clicked() && self.selected_machine < self.planner.machines.len()
-            {
-                self.planner.machines.remove(self.selected_machine);
-                self.planner.add_sources_and_sinks();
-            }
-
+            ui.label(if self.planner.solved {
+                "✔ Solved"
+            } else {
+                "🗙 Unsolved"
+            });
+            ui.horizontal(|ui| {
+                if self.selected_machine < self.planner.machines.len() {
+                    let machine = &self.planner.machines[self.selected_machine];
+                    if machine.crafter.name != "source" && machine.crafter.name != "sink" {
+                        if ui.button("Remove").clicked() {
+                            self.planner.machines.remove(self.selected_machine);
+                            if let Err(err) = self.planner.auto_refresh() {
+                                self.alerts.push(err.to_string());
+                            }
+                        }
+                    }
+                }
+            });
             ui.heading("Constraints");
 
             egui::Frame::group(ui.style()).show(ui, |ui| {
                 let mut constraint_to_delete = None;
-                for (i, (item, speed)) in self.planner.item_speed_constraints.iter().enumerate() {
+                for (item, speed) in &self.planner.item_speed_constraints {
                     ui.horizontal(|ui| {
                         ui.label(format!("{}: {}/s", item, speed));
                         if ui.button("X").clicked() {
-                            constraint_to_delete = Some(i);
+                            constraint_to_delete = Some(item.clone());
                         }
                     });
                 }
-                if let Some(index) = constraint_to_delete {
-                    self.planner.item_speed_constraints.remove(index);
+                if let Some(item) = constraint_to_delete {
+                    self.planner.item_speed_constraints.remove(&item);
                     if let Err(err) = self.planner.solve() {
                         self.alerts.push(err.to_string());
                     }
                 }
+                let mut constraint_to_delete2 = None;
                 for (i, machine) in self.planner.machines.iter().enumerate() {
                     if let Some(count) = machine.count_constraint {
                         ui.horizontal(|ui| {
@@ -327,12 +546,12 @@ impl eframe::App for MyApp {
                                 count, machine.crafter.name, machine.recipe.name
                             ));
                             if ui.button("X").clicked() {
-                                constraint_to_delete = Some(i);
+                                constraint_to_delete2 = Some(i);
                             }
                         });
                     }
                 }
-                if let Some(index) = constraint_to_delete {
+                if let Some(index) = constraint_to_delete2 {
                     self.planner.machines[index].count_constraint = None;
                     if let Err(err) = self.planner.solve() {
                         self.alerts.push(err.to_string());
@@ -341,7 +560,7 @@ impl eframe::App for MyApp {
 
                 ui.horizontal(|ui| {
                     ui.label("Add item speed constraint: ");
-                    ComboBox::new("constaint_item", "")
+                    ComboBox::new("constraint_item", "")
                         .selected_text(&self.item_speed_contraint_item)
                         .show_ui(ui, |ui| {
                             for item in self.planner.added_items() {
@@ -400,8 +619,8 @@ impl eframe::App for MyApp {
             });
 
             ui.horizontal(|ui| {
-                if ui.button("Solve").clicked() {
-                    if let Err(err) = self.planner.solve() {
+                if ui.button("Chart").clicked() {
+                    if let Err(err) = self.open_chart() {
                         self.alerts.push(err.to_string());
                     }
                 }

@@ -1,4 +1,8 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    env,
+    path::Path,
+};
 
 use anyhow::{bail, format_err, Context};
 use config::Config;
@@ -7,9 +11,9 @@ use itertools::Itertools;
 use machine::Machine;
 use nalgebra::{DMatrix, DVector};
 
-mod config;
-mod game_data;
-mod machine;
+pub mod config;
+pub mod game_data;
+pub mod machine;
 pub mod prelude;
 
 pub struct Planner {
@@ -20,10 +24,29 @@ pub struct Planner {
     pub crafters: BTreeMap<String, Crafter>,
     pub category_to_crafter: BTreeMap<String, Vec<String>>,
     pub machines: Vec<Machine>,
-    pub item_speed_constraints: Vec<(String, f64)>,
+    pub item_speed_constraints: BTreeMap<String, f64>,
+    pub solved: bool,
 }
 
 pub fn init() -> anyhow::Result<Planner> {
+    if !env::current_dir().unwrap().join("game_data.json").exists() {
+        if Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("game_data.json")
+            .exists()
+        {
+            match env::set_current_dir(env!("CARGO_MANIFEST_DIR")) {
+                Ok(()) => println!("changed current dir to {}", env!("CARGO_MANIFEST_DIR")),
+                Err(err) => bail!(
+                    "failed to change current dir to {}: {}",
+                    env!("CARGO_MANIFEST_DIR"),
+                    err
+                ),
+            }
+        } else {
+            bail!("game_data.json not found in working directory");
+        }
+    }
+
     let config: Config = toml::from_str(&fs_err::read_to_string("config.toml")?)?;
     let game_data: GameData = serde_json::from_str(&fs_err::read_to_string("game_data.json")?)?;
     // println!("{game_data:#?}");
@@ -170,7 +193,8 @@ pub fn init() -> anyhow::Result<Planner> {
         crafters,
         category_to_crafter,
         machines: Vec::new(),
-        item_speed_constraints: Vec::new(),
+        item_speed_constraints: BTreeMap::new(),
+        solved: true,
     })
 }
 
@@ -299,7 +323,7 @@ impl Planner {
         self.machines.push(Machine {
             crafter,
             crafter_count: 1.0,
-            recipe,
+            recipe: recipe.clone(),
             count_constraint: None,
         });
         Ok(())
@@ -382,7 +406,7 @@ impl Planner {
         if !self.all_items.contains(item) {
             bail!("unknown item: {item:?}");
         }
-        self.item_speed_constraints.push((item.into(), speed));
+        self.item_speed_constraints.insert(item.into(), speed);
         Ok(())
     }
 
@@ -406,6 +430,11 @@ impl Planner {
            matrix column = index of variable = index of machine
         */
 
+        self.solved = false;
+        if self.machines.is_empty() {
+            self.solved = true;
+            return Ok(());
+        }
         for machine in &mut self.machines {
             machine.crafter_count = 1.0;
         }
@@ -490,6 +519,8 @@ impl Planner {
             machine.crafter_count = *output_item;
         }
 
+        self.solved = true;
+
         Ok(())
     }
 
@@ -512,6 +543,12 @@ impl Planner {
                 self.create_sink(&item).unwrap();
             }
         }
+    }
+
+    pub fn auto_refresh(&mut self) -> anyhow::Result<()> {
+        self.add_sources_and_sinks();
+        // TODO: reorder
+        self.solve()
     }
 }
 

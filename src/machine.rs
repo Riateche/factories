@@ -70,22 +70,29 @@ impl Machine {
         let inputs = if inputs.is_empty() {
             String::new()
         } else {
-            format!("{} -> ", inputs)
+            format!("{} ➡ ", inputs)
         };
         let outputs = if outputs.is_empty() {
             String::new()
         } else {
-            format!(" -> {}", outputs)
+            format!(" ➡ {}", outputs)
         };
         let crafter_count = if self.crafter.name == "source" || self.crafter.name == "sink" {
             String::new()
         } else {
             format!("{} × ", rf(self.crafter_count))
         };
+        let emoji = if self.crafter.name == "source" {
+            "∞"
+        } else if self.crafter.name == "sink" {
+            "🗑"
+        } else {
+            "🖩"
+        };
 
         format!(
-            "{}[{}{}]{}",
-            inputs, crafter_count, self.crafter.name, outputs
+            "{}{}{} {}{}",
+            inputs, crafter_count, emoji, self.crafter.name, outputs
         )
     }
 }
