@@ -42,7 +42,7 @@ impl Machine {
             .collect()
     }
 
-    pub fn print_io(&self) {
+    pub fn io_text(&self) -> String {
         let crafts_per_second = self.crafts_per_second();
 
         let inputs = self
@@ -65,12 +65,12 @@ impl Machine {
             })
             .join(" + ");
 
-        println!(
+        format!(
             "{} -> [{} × {}] -> {}",
             inputs,
             rf(self.crafter_count),
             self.crafter.name,
             outputs
-        );
+        )
     }
 }

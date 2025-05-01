@@ -5,6 +5,9 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.98"
+eframe = "0.31.1"
+egui-dropdown = "0.13.0"
+egui_extras = "0.31.1"
 fs-err = "3.1.0"
 itertools = "0.14.0"
 nalgebra = "0.33.2"

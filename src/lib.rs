@@ -14,12 +14,12 @@ pub mod prelude;
 
 pub struct Planner {
     config: Config,
-    game_data: GameData,
-    all_items: BTreeSet<String>,
+    pub game_data: GameData,
+    pub all_items: BTreeSet<String>,
     reachable_items: BTreeSet<String>,
     crafters: BTreeMap<String, Crafter>,
     category_to_crafter: BTreeMap<String, Vec<String>>,
-    machines: Vec<Machine>,
+    pub machines: Vec<Machine>,
     constraints: Vec<Constraint>,
 }
 
@@ -347,7 +347,7 @@ impl Planner {
 
         for machine in &self.machines {
             if machine.crafter.name != "source" && machine.crafter.name != "sink" {
-                machine.print_io();
+                println!("{}", machine.io_text());
             }
         }
 
