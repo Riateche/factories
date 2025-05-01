@@ -12,8 +12,8 @@ fn main() -> Result<()> {
     p.create_source("water")?;
     p.create_sink("plastic-bar")?;
     p.create_sink("solid-fuel")?;
-    p.add_constraint("plastic-bar", 15.0)?;
-    p.add_constraint("solid-fuel", 10.0)?;
+    p.add_item_speed_constraint("plastic-bar", 15.0)?;
+    p.add_item_speed_constraint("solid-fuel", 10.0)?;
     p.solve()?;
     p.show_machines();
 

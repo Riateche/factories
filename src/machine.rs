@@ -13,6 +13,8 @@ pub struct Machine {
     pub crafter: Crafter,
     pub crafter_count: f64,
     pub recipe: Recipe,
+
+    pub count_constraint: Option<f64>,
 }
 
 #[derive(Debug, Clone)]

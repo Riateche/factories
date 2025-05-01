@@ -7,7 +7,7 @@ fn main() -> Result<()> {
     p.create_source("iron-plate")?;
     p.create_source("copper-plate")?;
     p.create_sink("electronic-circuit")?;
-    p.add_constraint("electronic-circuit", 3.0)?;
+    p.add_item_speed_constraint("electronic-circuit", 3.0)?;
     p.solve()?;
     p.show_machines();
 

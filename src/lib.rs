@@ -13,14 +13,14 @@ mod machine;
 pub mod prelude;
 
 pub struct Planner {
-    config: Config,
+    pub config: Config,
     pub game_data: GameData,
     pub all_items: BTreeSet<String>,
-    reachable_items: BTreeSet<String>,
-    crafters: BTreeMap<String, Crafter>,
-    category_to_crafter: BTreeMap<String, Vec<String>>,
+    pub reachable_items: BTreeSet<String>,
+    pub crafters: BTreeMap<String, Crafter>,
+    pub category_to_crafter: BTreeMap<String, Vec<String>>,
     pub machines: Vec<Machine>,
-    pub constraints: Vec<Constraint>,
+    pub item_speed_constraints: Vec<(String, f64)>,
 }
 
 pub fn init() -> anyhow::Result<Planner> {
@@ -170,7 +170,7 @@ pub fn init() -> anyhow::Result<Planner> {
         crafters,
         category_to_crafter,
         machines: Vec::new(),
-        constraints: Vec::new(),
+        item_speed_constraints: Vec::new(),
     })
 }
 
@@ -209,6 +209,7 @@ impl Planner {
                 order: String::new(),
                 productivity_bonus: 0.0,
             },
+            count_constraint: None,
         });
         Ok(())
     }
@@ -240,6 +241,7 @@ impl Planner {
                 order: String::new(),
                 productivity_bonus: 0.0,
             },
+            count_constraint: None,
         });
         Ok(())
     }
@@ -250,6 +252,18 @@ impl Planner {
         crafter: &str,
     ) -> anyhow::Result<()> {
         self.create_machine_ext(recipe, Some(crafter))
+    }
+
+    pub fn auto_select_crafter(&self, crafters: &[String]) -> Option<String> {
+        if crafters.len() == 1 {
+            Some(crafters[0].clone())
+        } else if crafters.iter().any(|c| c == &self.config.assembler_type) {
+            Some(self.config.assembler_type.clone())
+        } else if crafters.iter().any(|c| c == &self.config.furnace_type) {
+            Some(self.config.furnace_type.clone())
+        } else {
+            None
+        }
     }
 
     fn create_machine_ext(&mut self, recipe: &str, crafter: Option<&str>) -> anyhow::Result<()> {
@@ -264,17 +278,13 @@ impl Planner {
             .get(&recipe.category)
             .context("unknown recipe category")?;
         assert!(!crafters.is_empty());
-        let crafter = if crafters.len() == 1 {
-            crafters[0].clone()
-        } else if let Some(crafter) = crafter {
+        let crafter = if let Some(crafter) = crafter {
             if !crafters.iter().any(|c| c == crafter) {
                 bail!("requested crafter {crafter:?}, but available crafters for {recipe:?} are: {crafters:?}");
             }
             crafter.to_string()
-        } else if crafters.iter().any(|c| c == &self.config.assembler_type) {
-            self.config.assembler_type.clone()
-        } else if crafters.iter().any(|c| c == &self.config.furnace_type) {
-            self.config.furnace_type.clone()
+        } else if let Some(crafter) = self.auto_select_crafter(crafters) {
+            crafter
         } else {
             bail!("ambiguous crafter for {recipe:?}: {crafters:?}");
         };
@@ -290,6 +300,7 @@ impl Planner {
             crafter,
             crafter_count: 1.0,
             recipe,
+            count_constraint: None,
         });
         Ok(())
     }
@@ -367,14 +378,11 @@ impl Planner {
         println!();
     }
 
-    pub fn add_constraint(&mut self, item: &str, speed: f64) -> anyhow::Result<()> {
+    pub fn add_item_speed_constraint(&mut self, item: &str, speed: f64) -> anyhow::Result<()> {
         if !self.all_items.contains(item) {
             bail!("unknown item: {item:?}");
         }
-        self.constraints.push(Constraint::ItemProduction {
-            item: item.into(),
-            speed,
-        });
+        self.item_speed_constraints.push((item.into(), speed));
         Ok(())
     }
 
@@ -407,7 +415,22 @@ impl Planner {
             .map(|item| Constraint::ItemSumsToZero {
                 item: item.to_string(),
             })
-            .chain(self.constraints.iter().cloned())
+            .chain(self.item_speed_constraints.iter().map(|(item, speed)| {
+                Constraint::ItemProduction {
+                    item: item.into(),
+                    speed: *speed,
+                }
+            }))
+            .chain(
+                self.machines
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, machine)| {
+                        machine
+                            .count_constraint
+                            .map(|count| Constraint::MachineCount { index, count })
+                    }),
+            )
             .collect();
 
         let a = DMatrix::from_fn(constraints.len(), self.machines.len(), |row, col| {
@@ -425,11 +448,22 @@ impl Planner {
                     .filter(|i| &i.item == item && i.speed > 0.0)
                     .map(|i| i.speed)
                     .sum::<f64>(),
+                Constraint::MachineCount {
+                    index: machine_index,
+                    count: _,
+                } => {
+                    if *machine_index == col {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                }
             }
         });
         let b = DVector::from_fn(constraints.len(), |row, _| match &constraints[row] {
             Constraint::ItemSumsToZero { item: _ } => 0.0,
             Constraint::ItemProduction { item: _, speed } => *speed,
+            Constraint::MachineCount { index: _, count } => *count,
         });
         if false {
             println!("constraints: {constraints:?}");
@@ -485,6 +519,7 @@ impl Planner {
 pub enum Constraint {
     ItemSumsToZero { item: String },
     ItemProduction { item: String, speed: f64 },
+    MachineCount { index: usize, count: f64 },
 }
 
 /*

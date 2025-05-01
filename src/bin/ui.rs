@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 use eframe::egui::{self, Color32, ComboBox};
-use factories::{prelude::*, Constraint};
+use factories::prelude::*;
 
 use egui::{
     text::{CCursor, CCursorRange},
@@ -142,7 +142,6 @@ impl<'a, F: FnMut(&mut Ui, &str) -> Response, V: AsRef<str>, I: Iterator<Item = 
                                 *self.buf = text.to_owned();
                                 changed = true;
                                 committed = true;
-                                r.request_focus();
 
                                 ui.memory_mut(|m| m.close_popup());
                             }
@@ -195,6 +194,7 @@ fn main() -> eframe::Result {
                 selected_machine: 0,
                 item_speed_contraint_item: String::new(),
                 item_speed_contraint_speed: String::new(),
+                machine_count_constraint: String::new(),
             }))
         }),
     )
@@ -208,6 +208,7 @@ struct MyApp {
     selected_machine: usize,
     item_speed_contraint_item: String,
     item_speed_contraint_speed: String,
+    machine_count_constraint: String,
 }
 
 impl eframe::App for MyApp {
@@ -222,8 +223,34 @@ impl eframe::App for MyApp {
 
             ui.horizontal(|ui| {
                 ui.label("Add a recipe:");
+
+                let recipes_iter = self.planner.game_data.recipes.values().flat_map(|recipe| {
+                    let crafters = self
+                        .planner
+                        .category_to_crafter
+                        .get(&recipe.category)
+                        .expect("missing item in category_to_crafter");
+
+                    let crafters = if let Some(crafter) = self.planner.auto_select_crafter(crafters)
+                    {
+                        vec![crafter]
+                    } else {
+                        crafters.clone()
+                    };
+
+                    let auto_select_crafter = crafters.len() == 1;
+
+                    crafters.into_iter().map(move |crafter| {
+                        if auto_select_crafter {
+                            recipe.name.clone()
+                        } else {
+                            format!("{} @ {}", recipe.name, crafter)
+                        }
+                    })
+                });
+
                 let r = DropDownBox::from_iter(
-                    self.planner.game_data.recipes.keys(),
+                    recipes_iter,
                     "recipe",
                     &mut self.recipe_search_text,
                     |ui, text| ui.selectable_label(false, text),
@@ -236,7 +263,14 @@ impl eframe::App for MyApp {
 
                 if r.committed {
                     println!("adding {}", self.recipe_search_text);
-                    match self.planner.create_machine(&self.recipe_search_text) {
+                    let r = if let Some((recipe, machine)) =
+                        self.recipe_search_text.split_once(" @ ")
+                    {
+                        self.planner.create_machine_with_crafter(recipe, machine)
+                    } else {
+                        self.planner.create_machine(&self.recipe_search_text)
+                    };
+                    match r {
                         Err(err) => {
                             self.alerts.push(err.to_string());
                         }
@@ -261,26 +295,45 @@ impl eframe::App for MyApp {
                     }
                 });
             });
+            if ui.button("Remove").clicked() && self.selected_machine < self.planner.machines.len()
+            {
+                self.planner.machines.remove(self.selected_machine);
+                self.planner.add_sources_and_sinks();
+            }
 
             ui.heading("Constraints");
 
             egui::Frame::group(ui.style()).show(ui, |ui| {
                 let mut constraint_to_delete = None;
-                for (i, constraint) in self.planner.constraints.iter().enumerate() {
-                    match constraint {
-                        Constraint::ItemSumsToZero { .. } => unreachable!(),
-                        Constraint::ItemProduction { item, speed } => {
-                            ui.horizontal(|ui| {
-                                ui.label(format!("{}: {}/s", item, speed));
-                                if ui.button("X").clicked() {
-                                    constraint_to_delete = Some(i);
-                                }
-                            });
+                for (i, (item, speed)) in self.planner.item_speed_constraints.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{}: {}/s", item, speed));
+                        if ui.button("X").clicked() {
+                            constraint_to_delete = Some(i);
                         }
+                    });
+                }
+                if let Some(index) = constraint_to_delete {
+                    self.planner.item_speed_constraints.remove(index);
+                    if let Err(err) = self.planner.solve() {
+                        self.alerts.push(err.to_string());
+                    }
+                }
+                for (i, machine) in self.planner.machines.iter().enumerate() {
+                    if let Some(count) = machine.count_constraint {
+                        ui.horizontal(|ui| {
+                            ui.label(format!(
+                                "{} × {}({})",
+                                count, machine.crafter.name, machine.recipe.name
+                            ));
+                            if ui.button("X").clicked() {
+                                constraint_to_delete = Some(i);
+                            }
+                        });
                     }
                 }
                 if let Some(index) = constraint_to_delete {
-                    self.planner.constraints.remove(index);
+                    self.planner.machines[index].count_constraint = None;
                     if let Err(err) = self.planner.solve() {
                         self.alerts.push(err.to_string());
                     }
@@ -301,7 +354,7 @@ impl eframe::App for MyApp {
                         });
                     let speed_label = ui.label("Speed: ");
                     TextEdit::singleline(&mut self.item_speed_contraint_speed)
-                        .desired_width(100.0)
+                        .desired_width(50.0)
                         .ui(ui)
                         .labelled_by(speed_label.id);
                     ui.label("/s");
@@ -311,10 +364,34 @@ impl eframe::App for MyApp {
                             .parse()
                             .map_err(Error::from)
                             .and_then(|speed| {
-                                self.planner
-                                    .add_constraint(&self.item_speed_contraint_item, speed)
+                                self.planner.add_item_speed_constraint(
+                                    &self.item_speed_contraint_item,
+                                    speed,
+                                )
                             })
                             .and_then(|()| self.planner.solve());
+                        if let Err(err) = r {
+                            self.alerts.push(err.to_string());
+                        }
+                    }
+                });
+
+                ui.horizontal(|ui| {
+                    let label = ui.label("Add selected machine count constraint:");
+                    TextEdit::singleline(&mut self.machine_count_constraint)
+                        .desired_width(50.0)
+                        .ui(ui)
+                        .labelled_by(label.id);
+                    if ui.button("Add").clicked() {
+                        let r = self
+                            .machine_count_constraint
+                            .parse()
+                            .map_err(Error::from)
+                            .and_then(|count| {
+                                self.planner.machines[self.selected_machine].count_constraint =
+                                    Some(count);
+                                self.planner.solve()
+                            });
                         if let Err(err) = r {
                             self.alerts.push(err.to_string());
                         }

@@ -19,7 +19,7 @@ fn main() -> Result<()> {
     p.create_source("crude-oil")?;
     // p.create_source("copper-plate")?;
     p.create_sink("plastic-bar")?;
-    p.add_constraint("plastic-bar", 2.0)?;
+    p.add_item_speed_constraint("plastic-bar", 2.0)?;
     p.solve()?;
     p.show_machines();
 
