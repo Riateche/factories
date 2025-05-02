@@ -1,11 +1,12 @@
 use {
     super::{
-        app::{name_or_untitled, MyApp},
+        app::{name_or_untitled, recipe_menu_items, MyApp},
         drop_down::DropDownBox,
     },
     crate::rf,
     eframe::egui::{self, Color32, ComboBox, Key},
     egui::{Response, ScrollArea, TextEdit, Ui, Widget},
+    itertools::Itertools,
     std::{env, path::Path, time::Duration},
     url::Url,
 };
@@ -58,6 +59,7 @@ impl MyApp {
                                     self.show_error(&r);
                                 }
                             });
+                            /*
                             ui.horizontal(|ui| {
                                 ui.label("Replace source with craft:");
                                 let mut text = String::new();
@@ -86,7 +88,8 @@ impl MyApp {
                                                     } else {
                                                         ""
                                                     };
-                                                    for menu_item in self.recipe_menu_items(recipe)
+                                                    for menu_item in
+                                                        recipe_menu_items(&self.planner, recipe)
                                                     {
                                                         ui.selectable_value(
                                                             &mut text,
@@ -138,7 +141,8 @@ impl MyApp {
                                                         } else {
                                                             ""
                                                         };
-                                                    for menu_item in self.recipe_menu_items(recipe)
+                                                    for menu_item in
+                                                        recipe_menu_items(&self.planner, recipe)
                                                     {
                                                         ui.selectable_value(
                                                             &mut text,
@@ -157,7 +161,17 @@ impl MyApp {
                                     let r = self.add_recipe(&text);
                                     self.show_error(&r);
                                 }
+                            });*/
+                        });
+                        ui.horizontal(|ui| {
+                            ui.heading("");
+                            ui.label(if self.planner.snippet.solved {
+                                "✔ Solved"
+                            } else {
+                                "🗙 Unsolved"
                             });
+
+                            ui.label(if self.saved { "✔ Saved" } else { "! Unsaved" });
                         });
                     });
                     ui.vertical(|ui| {
@@ -240,16 +254,6 @@ impl MyApp {
                             }
                         });
                     });
-                    ui.vertical(|ui| {
-                        ui.heading("");
-                        ui.label(if self.planner.snippet.solved {
-                            "✔ Solved"
-                        } else {
-                            "🗙 Unsolved"
-                        });
-
-                        ui.label(if self.saved { "✔ Saved" } else { "! Unsaved" });
-                    });
                 });
 
                 ui.heading("Machines");
@@ -259,6 +263,7 @@ impl MyApp {
                         ui.label("No machines.");
                     }
                     let mut index_to_remove = None;
+                    let mut recipe_to_add = None;
                     for (i, machine) in self.planner.snippet.machines.iter().enumerate() {
                         ui.horizontal(|ui| {
                             let item_speeds = machine.item_speeds();
@@ -355,7 +360,127 @@ impl MyApp {
                             //     self.selected_machine = i;
                             // }
                             ui.add_space(10.0);
-                            if machine.crafter.name != "source" && machine.crafter.name != "sink" {
+                            if machine.crafter.name == "source" || machine.crafter.name == "sink" {
+                                let r = ui.button("R");
+                                if r.contains_pointer() {
+                                    egui::show_tooltip(
+                                        ui.ctx(),
+                                        ui.layer_id(),
+                                        egui::Id::new("Replace with craft"),
+                                        |ui| {
+                                            ui.label("Replace with craft");
+                                        },
+                                    );
+                                }
+                                if r.clicked() {
+                                    if self.replace_with_craft_index == Some(i) {
+                                        self.replace_with_craft_index = None;
+                                    } else {
+                                        let item = if machine.crafter.name == "source" {
+                                            &machine.recipe.products[0].name
+                                        } else {
+                                            &machine.recipe.ingredients[0].name
+                                        };
+                                        let mut menu_items_and_hints = Vec::new();
+                                        for recipe in self.planner.game_data.recipes.values() {
+                                            if recipe.category == "recycling"
+                                                || recipe.category == "recycling-or-hand-crafting"
+                                            {
+                                                continue;
+                                            }
+                                            let can_replace = if machine.crafter.name == "source" {
+                                                recipe.products.iter().any(|p| &p.name == item)
+                                            } else {
+                                                recipe.ingredients.iter().any(|p| &p.name == item)
+                                            };
+                                            if !can_replace {
+                                                continue;
+                                            }
+                                            let hint = if machine.crafter.name == "source" {
+                                                format!(
+                                                    "({} ➡) ",
+                                                    recipe
+                                                        .ingredients
+                                                        .iter()
+                                                        .map(|i| &i.name)
+                                                        .join(" + ")
+                                                )
+                                            } else {
+                                                if recipe.products.len() == 1
+                                                    && recipe.products[0].name == recipe.name
+                                                {
+                                                    String::new()
+                                                } else {
+                                                    format!(
+                                                        " (➡ {})",
+                                                        recipe
+                                                            .products
+                                                            .iter()
+                                                            .map(|i| &i.name)
+                                                            .join(" + ")
+                                                    )
+                                                }
+                                            };
+                                            for menu_item in
+                                                recipe_menu_items(&self.planner, recipe)
+                                            {
+                                                menu_items_and_hints
+                                                    .push((menu_item, hint.clone()));
+                                            }
+                                        }
+                                        let show_hints = !menu_items_and_hints
+                                            .iter()
+                                            .map(|(_, hint)| hint)
+                                            .all_equal();
+                                        self.replace_with_craft_options = menu_items_and_hints
+                                            .into_iter()
+                                            .map(|(menu_item, hint)| {
+                                                let text = if show_hints {
+                                                    if machine.crafter.name == "source" {
+                                                        format!("{hint}{menu_item}")
+                                                    } else {
+                                                        format!("{menu_item}{hint}")
+                                                    }
+                                                } else {
+                                                    menu_item.clone()
+                                                };
+                                                (menu_item, text)
+                                            })
+                                            .collect();
+
+                                        //... set replace_with_craft_options
+                                        self.generation += 1;
+                                        if self.replace_with_craft_options.len() == 1 {
+                                            self.replace_with_craft_index = None;
+                                            let recipe =
+                                                self.replace_with_craft_options.remove(0).0;
+                                            recipe_to_add = Some(recipe.clone());
+                                        } else {
+                                            self.replace_with_craft_index = Some(i);
+                                        }
+                                    }
+                                }
+                                if self.replace_with_craft_index == Some(i) {
+                                    let mut text = String::new();
+                                    ComboBox::new(("replace_source_item", self.generation), "")
+                                        .selected_text(&text)
+                                        .show_ui(ui, |ui| {
+                                            for (menu_item, item_text) in
+                                                &self.replace_with_craft_options
+                                            {
+                                                ui.selectable_value(
+                                                    &mut text,
+                                                    menu_item.into(),
+                                                    item_text,
+                                                );
+                                            }
+                                        });
+                                    if !text.is_empty() {
+                                        recipe_to_add = Some(text);
+                                        self.replace_with_craft_index = None;
+                                    }
+                                }
+                            } else {
                                 let r = ui.button("C");
                                 if r.contains_pointer() {
                                     egui::show_tooltip(
@@ -386,6 +511,10 @@ impl MyApp {
                         self.planner.snippet.solved = false;
                         self.planner.snippet.machines.remove(i);
                         self.after_machines_changed();
+                    }
+                    if let Some(name) = recipe_to_add {
+                        let r = self.add_recipe(&name);
+                        self.show_error(&r);
                     }
                 });
                 ui.heading("Constraints");

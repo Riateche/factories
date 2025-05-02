@@ -24,17 +24,10 @@ fn main() -> anyhow::Result<()> {
         "Factories",
         options,
         Box::new(|cc| {
-            //cc.egui_ctx.set_pixels_per_point(1.25);
-            //let style_scale = 2.0;
             cc.egui_ctx.all_styles_mut(|style| {
                 style.text_styles.get_mut(&TextStyle::Body).unwrap().size = 20.0;
                 style.text_styles.get_mut(&TextStyle::Button).unwrap().size = 15.0;
-                // for item in style.text_styles.values_mut() {
-                //     item.size *= style_scale;
-                // }
-                // style.spacing.item_spacing.x *= style_scale;
                 style.spacing.item_spacing.y = 5.0;
-                // style.spacing.combo_height *= style_scale;
                 style.spacing.button_padding = vec2(5.0, 2.0);
                 style.spacing.scroll = ScrollStyle::solid();
             });

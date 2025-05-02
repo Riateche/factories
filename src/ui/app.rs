@@ -29,6 +29,9 @@ pub struct MyApp {
     pub confirm_delete: Option<String>,
     pub generation: u64,
     pub add_machine_count_constraint_index: Option<usize>,
+    // (recipe_name_with_machine, display_text)
+    pub replace_with_craft_options: Vec<(String, String)>,
+    pub replace_with_craft_index: Option<usize>,
 }
 
 const UNTITLED: &str = "Untitled";
@@ -75,13 +78,15 @@ impl MyApp {
             confirm_delete: None,
             generation: 0,
             add_machine_count_constraint_index: None,
+            replace_with_craft_options: Vec::new(),
+            replace_with_craft_index: None,
         };
         app.all_recipe_menu_items = app
             .planner
             .game_data
             .recipes
             .values()
-            .flat_map(|recipe| app.recipe_menu_items(recipe))
+            .flat_map(|recipe| recipe_menu_items(&app.planner, recipe))
             .collect();
         Ok(app)
     }
@@ -103,34 +108,6 @@ impl MyApp {
         }
         self.after_machines_changed();
         Ok(())
-    }
-
-    pub fn recipe_menu_items(&self, recipe: &Recipe) -> Vec<String> {
-        // let recipe_text = if recipe.products.len() != 1 || recipe.products[0].name != recipe.name {
-        //     format!(
-        //         "{} ({} ➡ {})",
-        //         recipe.name,
-        //         recipe.ingredients.iter().map(|i| &i.name).join(" + "),
-        //         recipe.products.iter().map(|i| &i.name).join(" + "),
-        //     )
-        // } else {
-        //     recipe.name.clone()
-        // };
-
-        let crafters = self
-            .planner
-            .category_to_crafter
-            .get(&recipe.category)
-            .expect("missing item in category_to_crafter");
-
-        if self.planner.auto_select_crafter(crafters).is_some() {
-            vec![recipe.name.clone()]
-        } else {
-            crafters
-                .iter()
-                .map(move |crafter| format!("{} @ {}", &recipe.name, crafter))
-                .collect()
-        }
     }
 
     pub fn generate_chart(&self) -> String {
@@ -156,7 +133,7 @@ impl MyApp {
             };
             writeln!(
                 out,
-                r#"    machine{}{}"{}{}"{}"#,
+                r#"    machine{}{}"{}*{}*(*{}*)"{}"#,
                 index,
                 left_bracket,
                 if machine.crafter.name == "source" || machine.crafter.name == "sink" {
@@ -165,6 +142,23 @@ impl MyApp {
                     format!("{} × ", rf(machine.crafter_count))
                 },
                 machine.crafter.name,
+                if machine.crafter.name == "source" || machine.crafter.name == "sink" {
+                    machine
+                        .recipe
+                        .ingredients
+                        .get(0)
+                        .map(|i| &i.name)
+                        .unwrap_or_else(|| {
+                            machine
+                                .recipe
+                                .products
+                                .get(0)
+                                .map(|i| &i.name)
+                                .expect("invalid source or sink recipe")
+                        })
+                } else {
+                    &machine.recipe.name
+                },
                 right_bracket,
             )
             .unwrap();
@@ -221,7 +215,7 @@ impl MyApp {
                     .0;
                     writeln!(
                         out,
-                        "    machine{}-->|{}/s {}|machine{}",
+                        "    machine{}-->|{}/s *{}*|machine{}",
                         source_machine,
                         rf(current_speed),
                         item,
@@ -332,5 +326,32 @@ impl MyApp {
         self.saved = false;
         self.planner.snippet = Snippet::default();
         self.planner.snippet.solved = true;
+    }
+}
+
+pub fn recipe_menu_items(planner: &Planner, recipe: &Recipe) -> Vec<String> {
+    // let recipe_text = if recipe.products.len() != 1 || recipe.products[0].name != recipe.name {
+    //     format!(
+    //         "{} ({} ➡ {})",
+    //         recipe.name,
+    //         recipe.ingredients.iter().map(|i| &i.name).join(" + "),
+    //         recipe.products.iter().map(|i| &i.name).join(" + "),
+    //     )
+    // } else {
+    //     recipe.name.clone()
+    // };
+
+    let crafters = planner
+        .category_to_crafter
+        .get(&recipe.category)
+        .expect("missing item in category_to_crafter");
+
+    if planner.auto_select_crafter(crafters).is_some() {
+        vec![recipe.name.clone()]
+    } else {
+        crafters
+            .iter()
+            .map(move |crafter| format!("{} @ {}", &recipe.name, crafter))
+            .collect()
     }
 }
