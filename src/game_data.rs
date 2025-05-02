@@ -104,7 +104,7 @@ pub struct GameData {
     pub entities: BTreeMap<String, Entity>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Crafter {
     pub name: String,
     pub energy_usage: f64,

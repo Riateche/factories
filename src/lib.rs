@@ -10,11 +10,19 @@ use game_data::{Crafter, GameData, Ingredient, Product, Recipe};
 use itertools::Itertools;
 use machine::Machine;
 use nalgebra::{DMatrix, DVector};
+use serde::{Deserialize, Serialize};
 
 pub mod config;
 pub mod game_data;
 pub mod machine;
 pub mod prelude;
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Snippet {
+    pub machines: Vec<Machine>,
+    pub item_speed_constraints: BTreeMap<String, f64>,
+    pub solved: bool,
+}
 
 pub struct Planner {
     pub config: Config,
@@ -23,9 +31,7 @@ pub struct Planner {
     pub reachable_items: BTreeSet<String>,
     pub crafters: BTreeMap<String, Crafter>,
     pub category_to_crafter: BTreeMap<String, Vec<String>>,
-    pub machines: Vec<Machine>,
-    pub item_speed_constraints: BTreeMap<String, f64>,
-    pub solved: bool,
+    pub snippet: Snippet,
 }
 
 pub fn init() -> anyhow::Result<Planner> {
@@ -192,9 +198,11 @@ pub fn init() -> anyhow::Result<Planner> {
         reachable_items,
         crafters,
         category_to_crafter,
-        machines: Vec::new(),
-        item_speed_constraints: BTreeMap::new(),
-        solved: true,
+        snippet: Snippet {
+            machines: Vec::new(),
+            item_speed_constraints: BTreeMap::new(),
+            solved: true,
+        },
     })
 }
 
@@ -207,7 +215,7 @@ impl Planner {
         if !self.all_items.contains(item) {
             bail!("unknown item: {item:?}");
         }
-        self.machines.push(Machine {
+        self.snippet.machines.push(Machine {
             crafter: Crafter {
                 name: "source".into(),
                 energy_usage: 0.0,
@@ -242,7 +250,7 @@ impl Planner {
         if !self.all_items.contains(item) {
             bail!("unknown item: {item:?}");
         }
-        self.machines.push(Machine {
+        self.snippet.machines.push(Machine {
             crafter: Crafter {
                 name: "sink".into(),
                 energy_usage: 0.0,
@@ -320,7 +328,7 @@ impl Planner {
         if false {
             println!("selected crafter: {crafter:?}");
         }
-        self.machines.push(Machine {
+        self.snippet.machines.push(Machine {
             crafter,
             crafter_count: 1.0,
             recipe: recipe.clone(),
@@ -367,6 +375,7 @@ impl Planner {
     pub fn show_machines(&self) {
         println!();
         let inputs = self
+            .snippet
             .machines
             .iter()
             .filter(|m| m.crafter.name == "source")
@@ -380,13 +389,14 @@ impl Planner {
                 .join(" + ")
         );
 
-        for machine in &self.machines {
+        for machine in &self.snippet.machines {
             if machine.crafter.name != "source" && machine.crafter.name != "sink" {
                 println!("{}", machine.io_text());
             }
         }
 
         let outputs = self
+            .snippet
             .machines
             .iter()
             .filter(|m| m.crafter.name == "sink")
@@ -406,12 +416,15 @@ impl Planner {
         if !self.all_items.contains(item) {
             bail!("unknown item: {item:?}");
         }
-        self.item_speed_constraints.insert(item.into(), speed);
+        self.snippet
+            .item_speed_constraints
+            .insert(item.into(), speed);
         Ok(())
     }
 
     pub fn added_items(&self) -> BTreeSet<String> {
-        self.machines
+        self.snippet
+            .machines
             .iter()
             .flat_map(|m| {
                 m.recipe
@@ -430,12 +443,12 @@ impl Planner {
            matrix column = index of variable = index of machine
         */
 
-        self.solved = false;
-        if self.machines.is_empty() {
-            self.solved = true;
+        self.snippet.solved = false;
+        if self.snippet.machines.is_empty() {
+            self.snippet.solved = true;
             return Ok(());
         }
-        for machine in &mut self.machines {
+        for machine in &mut self.snippet.machines {
             machine.crafter_count = 1.0;
         }
         let items = self.added_items();
@@ -444,14 +457,18 @@ impl Planner {
             .map(|item| Constraint::ItemSumsToZero {
                 item: item.to_string(),
             })
-            .chain(self.item_speed_constraints.iter().map(|(item, speed)| {
-                Constraint::ItemProduction {
-                    item: item.into(),
-                    speed: *speed,
-                }
-            }))
             .chain(
-                self.machines
+                self.snippet
+                    .item_speed_constraints
+                    .iter()
+                    .map(|(item, speed)| Constraint::ItemProduction {
+                        item: item.into(),
+                        speed: *speed,
+                    }),
+            )
+            .chain(
+                self.snippet
+                    .machines
                     .iter()
                     .enumerate()
                     .filter_map(|(index, machine)| {
@@ -462,33 +479,37 @@ impl Planner {
             )
             .collect();
 
-        let a = DMatrix::from_fn(constraints.len(), self.machines.len(), |row, col| {
-            let machine = &self.machines[col];
-            match &constraints[row] {
-                Constraint::ItemSumsToZero { item } => machine
-                    .item_speeds()
-                    .into_iter()
-                    .filter(|i| &i.item == item)
-                    .map(|i| i.speed)
-                    .sum::<f64>(),
-                Constraint::ItemProduction { item, speed: _ } => machine
-                    .item_speeds()
-                    .into_iter()
-                    .filter(|i| &i.item == item && i.speed > 0.0)
-                    .map(|i| i.speed)
-                    .sum::<f64>(),
-                Constraint::MachineCount {
-                    index: machine_index,
-                    count: _,
-                } => {
-                    if *machine_index == col {
-                        1.0
-                    } else {
-                        0.0
+        let a = DMatrix::from_fn(
+            constraints.len(),
+            self.snippet.machines.len(),
+            |row, col| {
+                let machine = &self.snippet.machines[col];
+                match &constraints[row] {
+                    Constraint::ItemSumsToZero { item } => machine
+                        .item_speeds()
+                        .into_iter()
+                        .filter(|i| &i.item == item)
+                        .map(|i| i.speed)
+                        .sum::<f64>(),
+                    Constraint::ItemProduction { item, speed: _ } => machine
+                        .item_speeds()
+                        .into_iter()
+                        .filter(|i| &i.item == item && i.speed > 0.0)
+                        .map(|i| i.speed)
+                        .sum::<f64>(),
+                    Constraint::MachineCount {
+                        index: machine_index,
+                        count: _,
+                    } => {
+                        if *machine_index == col {
+                            1.0
+                        } else {
+                            0.0
+                        }
                     }
                 }
-            }
-        });
+            },
+        );
         let b = DVector::from_fn(constraints.len(), |row, _| match &constraints[row] {
             Constraint::ItemSumsToZero { item: _ } => 0.0,
             Constraint::ItemProduction { item: _, speed } => *speed,
@@ -503,7 +524,7 @@ impl Planner {
             println!("b={b:?}");
         }
 
-        let svd = a.svd(true, true);
+        let svd = a.clone().svd(true, true);
         let output = svd
             .solve(&b, 0.000001)
             .map_err(|str| format_err!("{str}"))?;
@@ -515,25 +536,36 @@ impl Planner {
             bail!("solve result is zero, probably missing machines or constraints");
         }
 
-        for (machine, output_item) in self.machines.iter_mut().zip_eq(output.iter()) {
+        for (machine, output_item) in self.snippet.machines.iter_mut().zip_eq(output.iter()) {
             machine.crafter_count = *output_item;
         }
 
-        self.solved = true;
+        let error = (a * output.clone() - b).norm();
+        if error > 0.01 {
+            bail!("couldn't fit all constraints (error = {}); try removing constraints or changing their values", rf(error));
+        }
+        if output.iter().any(|x| *x < 0.0) {
+            bail!("solution is negative! try adding more constraints");
+        }
+
+        self.snippet.solved = true;
 
         Ok(())
     }
 
     pub fn add_sources_and_sinks(&mut self) {
-        self.machines
+        self.snippet
+            .machines
             .retain(|m| m.crafter.name != "source" && m.crafter.name != "sink");
         let items = self.added_items();
         for item in items {
             let any_inputs = self
+                .snippet
                 .machines
                 .iter()
                 .any(|m| m.recipe.ingredients.iter().any(|i| i.name == item));
             let any_outputs = self
+                .snippet
                 .machines
                 .iter()
                 .any(|m| m.recipe.products.iter().any(|i| i.name == item));
@@ -545,9 +577,43 @@ impl Planner {
         }
     }
 
+    pub fn auto_sort_machines(&mut self) {
+        let mut new_machines = Vec::new();
+        let mut remaining_machines = self.snippet.machines.clone();
+        let mut crafted_items = BTreeSet::new();
+        loop {
+            let mut new_remaining_machines = Vec::new();
+            let old_count = new_machines.len();
+            for machine in remaining_machines {
+                if machine
+                    .recipe
+                    .ingredients
+                    .iter()
+                    .all(|ing| crafted_items.contains(&ing.name))
+                {
+                    for product in &machine.recipe.products {
+                        crafted_items.insert(product.name.to_string());
+                    }
+                    new_machines.push(machine);
+                } else {
+                    new_remaining_machines.push(machine);
+                }
+            }
+            remaining_machines = new_remaining_machines;
+            if new_machines.len() == old_count {
+                break;
+            }
+        }
+        if !remaining_machines.is_empty() {
+            println!("WARN: remaining_machines is not empty: {remaining_machines:?}");
+            new_machines.extend(remaining_machines);
+        }
+        self.snippet.machines = new_machines;
+    }
+
     pub fn auto_refresh(&mut self) -> anyhow::Result<()> {
         self.add_sources_and_sinks();
-        // TODO: reorder
+        self.auto_sort_machines();
         self.solve()
     }
 }

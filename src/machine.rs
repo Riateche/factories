@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     game_data::{Crafter, Recipe},
@@ -7,7 +8,7 @@ use crate::{
 
 pub struct MachinePrototype {}
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Machine {
     // TODO: non-crafting machines?
     pub crafter: Crafter,
