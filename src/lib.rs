@@ -1,21 +1,23 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    env,
-    path::Path,
+use {
+    anyhow::{bail, format_err, Context},
+    config::Config,
+    game_data::{Crafter, GameData, Ingredient, Product, Recipe},
+    itertools::Itertools,
+    machine::Machine,
+    nalgebra::{DMatrix, DVector},
+    serde::{Deserialize, Serialize},
+    std::{
+        collections::{BTreeMap, BTreeSet},
+        env,
+        path::Path,
+    },
 };
-
-use anyhow::{bail, format_err, Context};
-use config::Config;
-use game_data::{Crafter, GameData, Ingredient, Product, Recipe};
-use itertools::Itertools;
-use machine::Machine;
-use nalgebra::{DMatrix, DVector};
-use serde::{Deserialize, Serialize};
 
 pub mod config;
 pub mod game_data;
 pub mod machine;
 pub mod prelude;
+pub mod ui;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Snippet {
@@ -54,7 +56,20 @@ pub fn init() -> anyhow::Result<Planner> {
     }
 
     let config: Config = toml::from_str(&fs_err::read_to_string("config.toml")?)?;
-    let game_data: GameData = serde_json::from_str(&fs_err::read_to_string("game_data.json")?)?;
+    let mut game_data: GameData = serde_json::from_str(&fs_err::read_to_string("game_data.json")?)?;
+
+    let blacklist = [
+        "turbo-loader",
+        "express-loader",
+        "fast-loader",
+        "recipe-unknown",
+    ];
+    game_data.recipes.retain(|_, recipe| {
+        recipe.category != "recycling"
+            && recipe.category != "recycling-or-hand-crafting"
+            && recipe.category != "parameters"
+            && !blacklist.contains(&recipe.name.as_str())
+    });
     // println!("{game_data:#?}");
 
     // let mut set = BTreeSet::new();

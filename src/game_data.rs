@@ -1,6 +1,7 @@
-use std::collections::BTreeMap;
-
-use serde::{Deserialize, Deserializer, Serialize};
+use {
+    serde::{Deserialize, Deserializer, Serialize},
+    std::collections::BTreeMap,
+};
 
 // Lua doesn't distinguish between empty arrays and empty objects, so empty arrays in game_data.json are serialized as {}.
 fn deserialize_array_or_object<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>

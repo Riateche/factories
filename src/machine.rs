@@ -1,9 +1,10 @@
-use itertools::Itertools;
-use serde::{Deserialize, Serialize};
-
-use crate::{
-    game_data::{Crafter, Recipe},
-    rf,
+use {
+    crate::{
+        game_data::{Crafter, Recipe},
+        rf,
+    },
+    itertools::Itertools,
+    serde::{Deserialize, Serialize},
 };
 
 pub struct MachinePrototype {}
