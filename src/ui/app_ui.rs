@@ -480,26 +480,28 @@ impl MyApp {
                                         self.replace_with_craft_index = None;
                                     }
                                 }
-                            } else {
-                                let r = ui.button("C");
-                                if r.contains_pointer() {
-                                    egui::show_tooltip(
-                                        ui.ctx(),
-                                        ui.layer_id(),
-                                        egui::Id::new("Add machine count constraint"),
-                                        |ui| {
-                                            ui.label("Add machine count constraint");
-                                        },
-                                    );
-                                }
-                                if r.clicked() {
-                                    self.add_machine_count_constraint_index = Some(i);
-                                    self.machine_count_constraint = machine
-                                        .count_constraint
-                                        .map(|c| c.to_string())
-                                        .unwrap_or_default();
-                                    focus_machine_constraint_input = true;
-                                }
+                            }
+                            let r = ui.button("C");
+                            if r.contains_pointer() {
+                                egui::show_tooltip(
+                                    ui.ctx(),
+                                    ui.layer_id(),
+                                    egui::Id::new("Add machine count constraint"),
+                                    |ui| {
+                                        ui.label("Add machine count constraint");
+                                    },
+                                );
+                            }
+                            if r.clicked() {
+                                self.add_machine_count_constraint_index = Some(i);
+                                self.machine_count_constraint = machine
+                                    .count_constraint
+                                    .map(|c| c.to_string())
+                                    .unwrap_or_default();
+                                focus_machine_constraint_input = true;
+                            }
+                            if !(machine.crafter.name == "source" || machine.crafter.name == "sink")
+                            {
                                 if ui.button("🗙").clicked() {
                                     index_to_remove = Some(i);
                                 }
@@ -656,6 +658,13 @@ impl MyApp {
                             });
                         }
                     }
+                    ui.horizontal(|ui| {
+                        ui.label("Tip:");
+                        for (speed, item) in &self.belt_speeds {
+                            ui.image(icon_url(item));
+                            ui.label(format!("= {speed}/s    "));
+                        }
+                    });
                 });
 
                 ui.add_space(10.0);

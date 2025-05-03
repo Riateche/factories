@@ -32,6 +32,7 @@ pub struct MyApp {
     // (recipe_name_with_machine, display_text)
     pub replace_with_craft_options: Vec<(String, String)>,
     pub replace_with_craft_index: Option<usize>,
+    pub belt_speeds: Vec<(f64, String)>,
 }
 
 const UNTITLED: &str = "Untitled";
@@ -61,6 +62,21 @@ impl MyApp {
                     .to_string(),
             );
         }
+        let mut belt_speeds = planner
+            .game_data
+            .entities
+            .values()
+            .filter(|e| e.type_ == "transport-belt")
+            .map(|e| {
+                // belt_speed is tiles per tick;
+                // throughput per second = belt_speed * 60 (ticks/s) * 8 (density)
+                (
+                    e.belt_speed.expect("missing belt_speed") * 60. * 8.,
+                    e.name.clone(),
+                )
+            })
+            .collect_vec();
+        belt_speeds.sort_by_key(|(speed, _)| OrderedFloat(*speed));
 
         let mut app = MyApp {
             planner,
@@ -80,6 +96,7 @@ impl MyApp {
             add_machine_count_constraint_index: None,
             replace_with_craft_options: Vec::new(),
             replace_with_craft_index: None,
+            belt_speeds,
         };
         app.all_recipe_menu_items = app
             .planner
@@ -306,6 +323,7 @@ impl MyApp {
     }
 
     pub fn after_machines_changed(&mut self) {
+        self.alerts.clear();
         self.generation += 1;
         let r = self
             .planner
@@ -315,12 +333,14 @@ impl MyApp {
     }
 
     pub fn after_constraint_changed(&mut self) {
+        self.alerts.clear();
         self.generation += 1;
         let r = self.planner.solve().and_then(|()| self.save_snippet());
         self.show_error(&r);
     }
 
     pub fn new_snippet(&mut self) {
+        self.alerts.clear();
         self.generation += 1;
         self.snippet_name = String::new();
         self.saved = false;
