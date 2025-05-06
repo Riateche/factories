@@ -361,14 +361,14 @@ impl MyApp {
                             // }
                             ui.add_space(10.0);
                             if machine.crafter.name == "source" || machine.crafter.name == "sink" {
-                                let r = ui.button("R");
+                                let r = ui.button("Craft");
                                 if r.contains_pointer() {
                                     egui::show_tooltip(
                                         ui.ctx(),
                                         ui.layer_id(),
-                                        egui::Id::new("Replace with craft"),
+                                        egui::Id::new("Replace with a crafting machine"),
                                         |ui| {
-                                            ui.label("Replace with craft");
+                                            ui.label("Replace with a crafting machine");
                                         },
                                     );
                                 }
@@ -481,14 +481,14 @@ impl MyApp {
                                     }
                                 }
                             }
-                            let r = ui.button("C");
+                            let r = ui.button("Constraint");
                             if r.contains_pointer() {
                                 egui::show_tooltip(
                                     ui.ctx(),
                                     ui.layer_id(),
-                                    egui::Id::new("Add machine count constraint"),
+                                    egui::Id::new("Add or edit machine count constraint"),
                                     |ui| {
-                                        ui.label("Add machine count constraint");
+                                        ui.label("Add or edit machine count constraint");
                                     },
                                 );
                             }

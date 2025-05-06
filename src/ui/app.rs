@@ -121,7 +121,14 @@ impl MyApp {
         };
         self.recipe_search_text.clear();
         if add_auto_constraint {
-            self.planner.snippet.machines[0].count_constraint = Some(1.0);
+            if let Some(product) = self.planner.snippet.machines[0]
+                .recipe
+                .products
+                .get(0)
+                .cloned()
+            {
+                self.planner.add_item_speed_constraint(&product.name, 1.0)?;
+            }
         }
         self.after_machines_changed();
         Ok(())
