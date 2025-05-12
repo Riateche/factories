@@ -1,5 +1,5 @@
 use {
-    crate::{game_data::Recipe, init, rf, Planner, Snippet},
+    crate::{game_data::Recipe, init, rf, Module, Planner, Snippet},
     anyhow::{format_err, Context},
     itertools::Itertools,
     ordered_float::OrderedFloat,
@@ -17,6 +17,8 @@ pub struct MyApp {
     // Static data
     pub all_recipe_menu_items: Vec<String>,
     pub belt_speeds: Vec<(f64, String)>,
+    pub modules: Vec<Module>,
+    pub default_speed_module: Module,
 
     // Global
     pub planner: Planner,
@@ -47,6 +49,7 @@ pub struct MyApp {
     pub edit_machine_index: Option<usize>,
     pub machine_count_constraint: String,
     pub focus_machine_constraint_input: bool,
+    pub num_beacons: String,
 }
 
 const UNTITLED: &str = "Untitled";
@@ -92,6 +95,15 @@ impl MyApp {
             .collect_vec();
         belt_speeds.sort_by_key(|(speed, _)| OrderedFloat(*speed));
 
+        let (speed_module_name, prod_module_name) = match planner.config.module_tier {
+            1 => ("speed-module", "productivity-module"),
+            2 => ("speed-module-2", "productivity-module-2"),
+            3 => ("speed-module-3", "productivity-module-3"),
+            _ => panic!("invalid module_tier in config, expected 1, 2 or 3"),
+        };
+        let default_speed_module = planner.modules.get(speed_module_name).unwrap().clone();
+        let default_prod_module = planner.modules.get(prod_module_name).unwrap().clone();
+
         let mut app = MyApp {
             planner,
             recipe_search_text: String::new(),
@@ -112,6 +124,9 @@ impl MyApp {
             replace_with_craft_index: None,
             belt_speeds,
             focus_machine_constraint_input: false,
+            modules: vec![default_speed_module.clone(), default_prod_module],
+            default_speed_module,
+            num_beacons: String::new(),
         };
         app.all_recipe_menu_items = app
             .planner

@@ -37,7 +37,7 @@ pub struct Module {
 pub struct Planner {
     pub config: Config,
     pub game_data: GameData,
-    pub modules: Vec<Module>,
+    pub modules: BTreeMap<String, Module>,
     pub all_items: BTreeSet<String>,
     pub reachable_items: BTreeSet<String>,
     pub crafters: BTreeMap<String, Crafter>,
@@ -216,7 +216,7 @@ pub fn init() -> anyhow::Result<Planner> {
         }
     }
 
-    let modules = vec![
+    let modules = [
         Module {
             name: "speed-module".into(),
             energy_delta_percent: 50.,
@@ -253,7 +253,10 @@ pub fn init() -> anyhow::Result<Planner> {
             speed_delta_percent: -15.,
             productivity_delta_percent: 10.0,
         },
-    ];
+    ]
+    .into_iter()
+    .map(|m| (m.name.clone(), m))
+    .collect();
 
     Ok(Planner {
         config,

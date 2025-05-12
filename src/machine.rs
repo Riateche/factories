@@ -29,33 +29,33 @@ impl Machine {
         if self.beacons.is_empty() {
             0.0
         } else {
-            1.5 * (self.beacons.len() as f64).powf(0.5)
+            1.5 / (self.beacons.len() as f64).sqrt()
         }
     }
 
     // Not including productivity.
     pub fn crafts_per_second(&self) -> f64 {
-        let beacon_transmission_strength = self.beacon_transmission_strength();
+        let beacon_transmission_strength = dbg!(self.beacon_transmission_strength());
         let module_speed_percents: f64 = self
             .modules
             .iter()
             .map(|module| module.speed_delta_percent)
             .sum();
-        let beacon_speed_percents: f64 = self
+        let beacon_speed_percents: f64 = dbg!(self
             .beacons
             .iter()
             .flatten()
             .map(|module| module.speed_delta_percent)
-            .sum();
+            .sum());
         let speed_percents =
             100. + module_speed_percents + beacon_transmission_strength * beacon_speed_percents;
 
-        (speed_percents / 100.) * self.crafter.crafting_speed * self.crafter_count
+        (dbg!(speed_percents) / 100.) * self.crafter.crafting_speed * self.crafter_count
             / self.recipe.energy
     }
 
     pub fn input_speeds(&self) -> impl Iterator<Item = ItemSpeed> + '_ {
-        let crafts_per_second = self.crafts_per_second();
+        let crafts_per_second = dbg!(self.crafts_per_second());
         self.recipe.ingredients.iter().map(move |ing| ItemSpeed {
             item: ing.name.clone(),
             speed: -crafts_per_second * ing.amount,

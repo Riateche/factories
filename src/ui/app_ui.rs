@@ -4,7 +4,7 @@ use {
         drop_down::DropDownBox,
     },
     crate::rf,
-    eframe::egui::{self, Color32, ComboBox, Key},
+    eframe::egui::{self, Color32, ComboBox, Key, Sense},
     egui::{Response, ScrollArea, TextEdit, Ui, Widget},
     itertools::Itertools,
     std::{env, path::Path, time::Duration},
@@ -497,6 +497,7 @@ impl MyApp {
                                     .count_constraint
                                     .map(|c| c.to_string())
                                     .unwrap_or_default();
+                                self.num_beacons = machine.beacons.len().to_string();
                                 self.focus_machine_constraint_input = true;
                             }
                             if !(machine.crafter.name == "source" || machine.crafter.name == "sink")
@@ -560,6 +561,115 @@ impl MyApp {
                                     }
                                 }
                             });
+                            if self.planner.snippet.machines[i]
+                                .crafter
+                                .module_inventory_size
+                                > 0
+                            {
+                                let num_empty_module_slots = self.planner.snippet.machines[i]
+                                    .crafter
+                                    .module_inventory_size
+                                    .saturating_sub(
+                                        self.planner.snippet.machines[i].modules.len() as u64
+                                    );
+                                ui.horizontal(|ui| {
+                                    ui.label("Modules:");
+                                    let mut index_to_remove = None;
+                                    for (ii, module) in
+                                        self.planner.snippet.machines[i].modules.iter().enumerate()
+                                    {
+                                        if ui
+                                            .image(icon_url(&module.name))
+                                            .interact(Sense::click())
+                                            .clicked()
+                                        {
+                                            index_to_remove = Some(ii);
+                                        }
+                                    }
+                                    for _ in 0..(num_empty_module_slots) {
+                                        if ui.label("🚫").contains_pointer() {
+                                            egui::show_tooltip(
+                                                ui.ctx(),
+                                                ui.layer_id(),
+                                                egui::Id::new("Empty slot"),
+                                                |ui| {
+                                                    ui.label("Empty slot");
+                                                },
+                                            );
+                                        }
+                                    }
+                                    if !self.planner.snippet.machines[i].modules.is_empty() {
+                                        ui.label("(Click on module to remove it)");
+                                    }
+
+                                    if let Some(ii) = index_to_remove {
+                                        self.planner.snippet.machines[i].modules.remove(ii);
+                                        self.after_machines_changed();
+                                    }
+                                });
+
+                                if num_empty_module_slots > 0 {
+                                    ui.horizontal(|ui| {
+                                        ui.label("Add module:");
+                                        let mut added = false;
+                                        for module in &self.modules {
+                                            if ui
+                                                .image(icon_url(&module.name))
+                                                .interact(Sense::click())
+                                                .clicked()
+                                            {
+                                                let num_added = if ui.input(|i| i.modifiers.shift) {
+                                                    num_empty_module_slots
+                                                } else {
+                                                    1
+                                                };
+                                                for _ in 0..num_added {
+                                                    self.planner.snippet.machines[i]
+                                                        .modules
+                                                        .push(module.clone());
+                                                    added = true;
+                                                }
+                                            }
+                                        }
+                                        if added {
+                                            self.after_machines_changed();
+                                        }
+                                    });
+                                }
+                                ui.horizontal(|ui| {
+                                    let label = ui.label(
+                                        "Beacons with speed modules connected to each machine: ",
+                                    );
+                                    let text_response = TextEdit::singleline(&mut self.num_beacons)
+                                        .desired_width(50.0)
+                                        .ui(ui)
+                                        .labelled_by(label.id);
+                                    if ui.button("Set").clicked()
+                                        || (text_response.lost_focus()
+                                            && ui.input(|i| i.key_pressed(Key::Enter)))
+                                    {
+                                        match self.num_beacons.parse::<u32>() {
+                                            Ok(num_beacons) => {
+                                                self.planner.snippet.machines[i].beacons = (0
+                                                    ..num_beacons)
+                                                    .map(|_| {
+                                                        (0..2)
+                                                            .map(|_| {
+                                                                self.default_speed_module.clone()
+                                                            })
+                                                            .collect_vec()
+                                                    })
+                                                    .collect();
+                                                self.after_machines_changed();
+                                            }
+                                            Err(err) => {
+                                                self.show_error(&Err(err));
+                                            }
+                                        }
+                                    }
+                                });
+                            }
+
                             if ui.button("Cancel").clicked() {
                                 self.edit_machine_index = None;
                             }
@@ -603,6 +713,7 @@ impl MyApp {
                                 if ui.button("Edit").clicked() {
                                     self.edit_machine_index = Some(i);
                                     self.machine_count_constraint = count.to_string();
+                                    self.num_beacons = machine.beacons.len().to_string();
                                     self.focus_machine_constraint_input = true;
                                 }
                                 if ui.button("🗙").clicked() {
