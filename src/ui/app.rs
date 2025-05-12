@@ -14,25 +14,39 @@ use {
 };
 
 pub struct MyApp {
+    // Static data
+    pub all_recipe_menu_items: Vec<String>,
+    pub belt_speeds: Vec<(f64, String)>,
+
+    // Global
     pub planner: Planner,
-    pub snippet_name: String,
     pub snippet_names: BTreeSet<String>,
-    pub saved: bool,
-    pub recipe_search_text: String,
+    pub generation: u64, // used to generate new ids for tooltips when things change to force correct size
     pub alerts: VecDeque<(String, Instant)>,
     pub auto_focus: bool,
-    pub item_speed_contraint_item: String,
-    pub old_item_speed_contraint_item: String,
-    pub item_speed_contraint_speed: String,
-    pub machine_count_constraint: String,
-    pub all_recipe_menu_items: Vec<String>,
+
+    // Save/load
+    pub snippet_name: String,
+    pub saved: bool,
     pub confirm_delete: Option<String>,
-    pub generation: u64,
-    pub add_machine_count_constraint_index: Option<usize>,
+
+    // Add recipe
+    pub recipe_search_text: String,
+
+    // Machines view
     // (recipe_name_with_machine, display_text)
     pub replace_with_craft_options: Vec<(String, String)>,
     pub replace_with_craft_index: Option<usize>,
-    pub belt_speeds: Vec<(f64, String)>,
+
+    // Item speed constraints
+    pub item_speed_contraint_item: String,
+    pub old_item_speed_contraint_item: String,
+    pub item_speed_contraint_speed: String,
+
+    // Edit machine
+    pub edit_machine_index: Option<usize>,
+    pub machine_count_constraint: String,
+    pub focus_machine_constraint_input: bool,
 }
 
 const UNTITLED: &str = "Untitled";
@@ -93,10 +107,11 @@ impl MyApp {
             saved: false,
             confirm_delete: None,
             generation: 0,
-            add_machine_count_constraint_index: None,
+            edit_machine_index: None,
             replace_with_craft_options: Vec::new(),
             replace_with_craft_index: None,
             belt_speeds,
+            focus_machine_constraint_input: false,
         };
         app.all_recipe_menu_items = app
             .planner

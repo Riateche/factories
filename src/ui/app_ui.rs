@@ -21,7 +21,6 @@ fn icon_url(name: &str) -> String {
 impl MyApp {
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let mut focus_speed_constraint_input = false;
-        let mut focus_machine_constraint_input = false;
 
         ScrollArea::vertical()
             .show(ui, |ui| {
@@ -266,7 +265,7 @@ impl MyApp {
                     let mut recipe_to_add = None;
                     for (i, machine) in self.planner.snippet.machines.iter().enumerate() {
                         ui.horizontal(|ui| {
-                            let item_speeds = machine.item_speeds();
+                            let item_speeds = machine.item_speeds().collect_vec();
                             let mut is_first = true;
                             for stack in &item_speeds {
                                 if stack.speed < 0.0 {
@@ -481,24 +480,24 @@ impl MyApp {
                                     }
                                 }
                             }
-                            let r = ui.button("Constraint");
+                            let r = ui.button("Edit");
                             if r.contains_pointer() {
                                 egui::show_tooltip(
                                     ui.ctx(),
                                     ui.layer_id(),
-                                    egui::Id::new("Add or edit machine count constraint"),
+                                    egui::Id::new("Edit"),
                                     |ui| {
-                                        ui.label("Add or edit machine count constraint");
+                                        ui.label("Edit");
                                     },
                                 );
                             }
                             if r.clicked() {
-                                self.add_machine_count_constraint_index = Some(i);
+                                self.edit_machine_index = Some(i);
                                 self.machine_count_constraint = machine
                                     .count_constraint
                                     .map(|c| c.to_string())
                                     .unwrap_or_default();
-                                focus_machine_constraint_input = true;
+                                self.focus_machine_constraint_input = true;
                             }
                             if !(machine.crafter.name == "source" || machine.crafter.name == "sink")
                             {
@@ -519,8 +518,56 @@ impl MyApp {
                         self.show_error(&r);
                     }
                 });
-                ui.heading("Constraints");
 
+                if let Some(i) = self.edit_machine_index {
+                    if i < self.planner.snippet.machines.len() {
+                        ui.horizontal(|ui| {
+                            ui.heading(format!(
+                                "Edit machine: {}(",
+                                self.planner.snippet.machines[i].crafter.name,
+                            ));
+                            ui.image(icon_url(&self.planner.snippet.machines[i].recipe.name));
+                            ui.heading(format!(
+                                "{})",
+                                self.planner.snippet.machines[i].recipe.name
+                            ));
+                        });
+
+                        egui::Frame::group(ui.style()).show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                let label = ui.label("Set machine count constraint:");
+                                let text_response =
+                                    TextEdit::singleline(&mut self.machine_count_constraint)
+                                        .desired_width(50.0)
+                                        .ui(ui)
+                                        .labelled_by(label.id);
+                                if self.focus_machine_constraint_input {
+                                    text_response.request_focus();
+                                    self.focus_machine_constraint_input = false;
+                                }
+                                if ui.button("Add").clicked()
+                                    || (text_response.lost_focus()
+                                        && ui.input(|i| i.key_pressed(Key::Enter)))
+                                {
+                                    let r = self.machine_count_constraint.parse();
+                                    self.show_error(&r.as_ref().map(|_| ()));
+                                    if let Ok(count) = r {
+                                        self.saved = false;
+                                        self.planner.snippet.solved = false;
+                                        self.planner.snippet.machines[i].count_constraint =
+                                            Some(count);
+                                        self.after_constraint_changed();
+                                    }
+                                }
+                            });
+                            if ui.button("Cancel").clicked() {
+                                self.edit_machine_index = None;
+                            }
+                        });
+                    }
+                }
+
+                ui.heading("Constraints");
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     let mut constraint_to_delete = None;
                     let mut any_constraints = false;
@@ -554,9 +601,9 @@ impl MyApp {
                                     count, machine.crafter.name, machine.recipe.name
                                 ));
                                 if ui.button("Edit").clicked() {
-                                    self.add_machine_count_constraint_index = Some(i);
+                                    self.edit_machine_index = Some(i);
                                     self.machine_count_constraint = count.to_string();
-                                    focus_machine_constraint_input = true;
+                                    self.focus_machine_constraint_input = true;
                                 }
                                 if ui.button("🗙").clicked() {
                                     constraint_to_delete2 = Some(i);
@@ -624,40 +671,6 @@ impl MyApp {
                         }
                     });
 
-                    if let Some(i) = self.add_machine_count_constraint_index {
-                        if i < self.planner.snippet.machines.len() {
-                            ui.horizontal(|ui| {
-                                let label = ui.label(format!(
-                                    "Add machine count constraint for {}({}):",
-                                    self.planner.snippet.machines[i].crafter.name,
-                                    self.planner.snippet.machines[i].recipe.name
-                                ));
-                                let text_response =
-                                    TextEdit::singleline(&mut self.machine_count_constraint)
-                                        .desired_width(50.0)
-                                        .ui(ui)
-                                        .labelled_by(label.id);
-                                if focus_machine_constraint_input {
-                                    text_response.request_focus();
-                                }
-                                if ui.button("Add").clicked()
-                                    || (text_response.lost_focus()
-                                        && ui.input(|i| i.key_pressed(Key::Enter)))
-                                {
-                                    let r = self.machine_count_constraint.parse();
-                                    self.show_error(&r.as_ref().map(|_| ()));
-                                    if let Ok(count) = r {
-                                        self.saved = false;
-                                        self.planner.snippet.solved = false;
-                                        self.planner.snippet.machines[i].count_constraint =
-                                            Some(count);
-                                        self.add_machine_count_constraint_index = None;
-                                        self.after_constraint_changed();
-                                    }
-                                }
-                            });
-                        }
-                    }
                     ui.horizontal(|ui| {
                         ui.label("Tip:");
                         for (speed, item) in &self.belt_speeds {

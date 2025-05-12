@@ -44,6 +44,7 @@ local entity_properties = {
 	"type",
 	"name",
 	"energy_usage",
+	"module_inventory_size",
 	--[[ CraftingMachine ]]
 	"crafting_categories",
 	"ingredient_count",

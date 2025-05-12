@@ -7524,41 +7524,6 @@
             "order": "d[rocket-parts]-b[rocket-fuel]",
             "productivity_bonus": 0
         },
-        "rocket-part": {
-            "name": "rocket-part",
-            "enabled": false,
-            "category": "rocket-building",
-            "ingredients": [
-                {
-                    "type": "item",
-                    "name": "processing-unit",
-                    "amount": 1
-                },
-                {
-                    "type": "item",
-                    "name": "low-density-structure",
-                    "amount": 1
-                },
-                {
-                    "type": "item",
-                    "name": "rocket-fuel",
-                    "amount": 1
-                }
-            ],
-            "products": [
-                {
-                    "type": "item",
-                    "name": "rocket-part",
-                    "probability": 1,
-                    "amount": 1
-                }
-            ],
-            "hidden": false,
-            "hidden_from_flow_stats": false,
-            "energy": 3,
-            "order": "d[rocket-parts]-d[rocket-part]",
-            "productivity_bonus": 0
-        },
         "nuclear-fuel-recycling": {
             "name": "nuclear-fuel-recycling",
             "enabled": true,
@@ -11172,6 +11137,41 @@
             "order": "a[rocket-silo]",
             "productivity_bonus": 0
         },
+        "rocket-part": {
+            "name": "rocket-part",
+            "enabled": false,
+            "category": "rocket-building",
+            "ingredients": [
+                {
+                    "type": "item",
+                    "name": "processing-unit",
+                    "amount": 1
+                },
+                {
+                    "type": "item",
+                    "name": "low-density-structure",
+                    "amount": 1
+                },
+                {
+                    "type": "item",
+                    "name": "rocket-fuel",
+                    "amount": 1
+                }
+            ],
+            "products": [
+                {
+                    "type": "item",
+                    "name": "rocket-part",
+                    "probability": 1,
+                    "amount": 1
+                }
+            ],
+            "hidden": false,
+            "hidden_from_flow_stats": false,
+            "energy": 3,
+            "order": "b[rocket-part]",
+            "productivity_bonus": 0
+        },
         "cargo-landing-pad": {
             "name": "cargo-landing-pad",
             "enabled": false,
@@ -11204,7 +11204,7 @@
             "hidden": false,
             "hidden_from_flow_stats": false,
             "energy": 30,
-            "order": "b[cargo-landing-pad]",
+            "order": "c[cargo-landing-pad]",
             "productivity_bonus": 0
         },
         "space-platform-foundation": {
@@ -12320,7 +12320,7 @@
                 {
                     "type": "item",
                     "name": "copper-plate",
-                    "amount": 5
+                    "amount": 2
                 },
                 {
                     "type": "item",
@@ -12330,7 +12330,7 @@
                 {
                     "type": "item",
                     "name": "firearm-magazine",
-                    "amount": 1
+                    "amount": 2
                 }
             ],
             "products": [
@@ -12338,12 +12338,12 @@
                     "type": "item",
                     "name": "piercing-rounds-magazine",
                     "probability": 1,
-                    "amount": 1
+                    "amount": 2
                 }
             ],
             "hidden": false,
             "hidden_from_flow_stats": false,
-            "energy": 3,
+            "energy": 6,
             "order": "a[basic-clips]-b[piercing-rounds-magazine]",
             "productivity_bonus": 0
         },
@@ -14292,34 +14292,6 @@
             "order": "a",
             "productivity_bonus": 0
         },
-        "parameter-0-recycling": {
-            "name": "parameter-0-recycling",
-            "enabled": true,
-            "category": "recycling",
-            "ingredients": [
-                {
-                    "type": "item",
-                    "name": "parameter-0",
-                    "amount": 1,
-                    "ignored_by_stats": 1
-                }
-            ],
-            "products": [
-                {
-                    "type": "item",
-                    "name": "parameter-0",
-                    "probability": 0.25,
-                    "amount": 1,
-                    "ignored_by_stats": 1,
-                    "ignored_by_productivity": 1
-                }
-            ],
-            "hidden": true,
-            "hidden_from_flow_stats": false,
-            "energy": 0.03125,
-            "order": "a",
-            "productivity_bonus": 0
-        },
         "parameter-1": {
             "name": "parameter-1",
             "enabled": true,
@@ -14329,34 +14301,6 @@
             "hidden": false,
             "hidden_from_flow_stats": false,
             "energy": 0.5,
-            "order": "a",
-            "productivity_bonus": 0
-        },
-        "parameter-1-recycling": {
-            "name": "parameter-1-recycling",
-            "enabled": true,
-            "category": "recycling",
-            "ingredients": [
-                {
-                    "type": "item",
-                    "name": "parameter-1",
-                    "amount": 1,
-                    "ignored_by_stats": 1
-                }
-            ],
-            "products": [
-                {
-                    "type": "item",
-                    "name": "parameter-1",
-                    "probability": 0.25,
-                    "amount": 1,
-                    "ignored_by_stats": 1,
-                    "ignored_by_productivity": 1
-                }
-            ],
-            "hidden": true,
-            "hidden_from_flow_stats": false,
-            "energy": 0.03125,
             "order": "a",
             "productivity_bonus": 0
         },
@@ -14372,34 +14316,6 @@
             "order": "a",
             "productivity_bonus": 0
         },
-        "parameter-2-recycling": {
-            "name": "parameter-2-recycling",
-            "enabled": true,
-            "category": "recycling",
-            "ingredients": [
-                {
-                    "type": "item",
-                    "name": "parameter-2",
-                    "amount": 1,
-                    "ignored_by_stats": 1
-                }
-            ],
-            "products": [
-                {
-                    "type": "item",
-                    "name": "parameter-2",
-                    "probability": 0.25,
-                    "amount": 1,
-                    "ignored_by_stats": 1,
-                    "ignored_by_productivity": 1
-                }
-            ],
-            "hidden": true,
-            "hidden_from_flow_stats": false,
-            "energy": 0.03125,
-            "order": "a",
-            "productivity_bonus": 0
-        },
         "parameter-3": {
             "name": "parameter-3",
             "enabled": true,
@@ -14409,34 +14325,6 @@
             "hidden": false,
             "hidden_from_flow_stats": false,
             "energy": 0.5,
-            "order": "a",
-            "productivity_bonus": 0
-        },
-        "parameter-3-recycling": {
-            "name": "parameter-3-recycling",
-            "enabled": true,
-            "category": "recycling",
-            "ingredients": [
-                {
-                    "type": "item",
-                    "name": "parameter-3",
-                    "amount": 1,
-                    "ignored_by_stats": 1
-                }
-            ],
-            "products": [
-                {
-                    "type": "item",
-                    "name": "parameter-3",
-                    "probability": 0.25,
-                    "amount": 1,
-                    "ignored_by_stats": 1,
-                    "ignored_by_productivity": 1
-                }
-            ],
-            "hidden": true,
-            "hidden_from_flow_stats": false,
-            "energy": 0.03125,
             "order": "a",
             "productivity_bonus": 0
         },
@@ -14452,34 +14340,6 @@
             "order": "a",
             "productivity_bonus": 0
         },
-        "parameter-4-recycling": {
-            "name": "parameter-4-recycling",
-            "enabled": true,
-            "category": "recycling",
-            "ingredients": [
-                {
-                    "type": "item",
-                    "name": "parameter-4",
-                    "amount": 1,
-                    "ignored_by_stats": 1
-                }
-            ],
-            "products": [
-                {
-                    "type": "item",
-                    "name": "parameter-4",
-                    "probability": 0.25,
-                    "amount": 1,
-                    "ignored_by_stats": 1,
-                    "ignored_by_productivity": 1
-                }
-            ],
-            "hidden": true,
-            "hidden_from_flow_stats": false,
-            "energy": 0.03125,
-            "order": "a",
-            "productivity_bonus": 0
-        },
         "parameter-5": {
             "name": "parameter-5",
             "enabled": true,
@@ -14489,34 +14349,6 @@
             "hidden": false,
             "hidden_from_flow_stats": false,
             "energy": 0.5,
-            "order": "a",
-            "productivity_bonus": 0
-        },
-        "parameter-5-recycling": {
-            "name": "parameter-5-recycling",
-            "enabled": true,
-            "category": "recycling",
-            "ingredients": [
-                {
-                    "type": "item",
-                    "name": "parameter-5",
-                    "amount": 1,
-                    "ignored_by_stats": 1
-                }
-            ],
-            "products": [
-                {
-                    "type": "item",
-                    "name": "parameter-5",
-                    "probability": 0.25,
-                    "amount": 1,
-                    "ignored_by_stats": 1,
-                    "ignored_by_productivity": 1
-                }
-            ],
-            "hidden": true,
-            "hidden_from_flow_stats": false,
-            "energy": 0.03125,
             "order": "a",
             "productivity_bonus": 0
         },
@@ -14532,34 +14364,6 @@
             "order": "a",
             "productivity_bonus": 0
         },
-        "parameter-6-recycling": {
-            "name": "parameter-6-recycling",
-            "enabled": true,
-            "category": "recycling",
-            "ingredients": [
-                {
-                    "type": "item",
-                    "name": "parameter-6",
-                    "amount": 1,
-                    "ignored_by_stats": 1
-                }
-            ],
-            "products": [
-                {
-                    "type": "item",
-                    "name": "parameter-6",
-                    "probability": 0.25,
-                    "amount": 1,
-                    "ignored_by_stats": 1,
-                    "ignored_by_productivity": 1
-                }
-            ],
-            "hidden": true,
-            "hidden_from_flow_stats": false,
-            "energy": 0.03125,
-            "order": "a",
-            "productivity_bonus": 0
-        },
         "parameter-7": {
             "name": "parameter-7",
             "enabled": true,
@@ -14569,34 +14373,6 @@
             "hidden": false,
             "hidden_from_flow_stats": false,
             "energy": 0.5,
-            "order": "a",
-            "productivity_bonus": 0
-        },
-        "parameter-7-recycling": {
-            "name": "parameter-7-recycling",
-            "enabled": true,
-            "category": "recycling",
-            "ingredients": [
-                {
-                    "type": "item",
-                    "name": "parameter-7",
-                    "amount": 1,
-                    "ignored_by_stats": 1
-                }
-            ],
-            "products": [
-                {
-                    "type": "item",
-                    "name": "parameter-7",
-                    "probability": 0.25,
-                    "amount": 1,
-                    "ignored_by_stats": 1,
-                    "ignored_by_productivity": 1
-                }
-            ],
-            "hidden": true,
-            "hidden_from_flow_stats": false,
-            "energy": 0.03125,
             "order": "a",
             "productivity_bonus": 0
         },
@@ -14612,34 +14388,6 @@
             "order": "a",
             "productivity_bonus": 0
         },
-        "parameter-8-recycling": {
-            "name": "parameter-8-recycling",
-            "enabled": true,
-            "category": "recycling",
-            "ingredients": [
-                {
-                    "type": "item",
-                    "name": "parameter-8",
-                    "amount": 1,
-                    "ignored_by_stats": 1
-                }
-            ],
-            "products": [
-                {
-                    "type": "item",
-                    "name": "parameter-8",
-                    "probability": 0.25,
-                    "amount": 1,
-                    "ignored_by_stats": 1,
-                    "ignored_by_productivity": 1
-                }
-            ],
-            "hidden": true,
-            "hidden_from_flow_stats": false,
-            "energy": 0.03125,
-            "order": "a",
-            "productivity_bonus": 0
-        },
         "parameter-9": {
             "name": "parameter-9",
             "enabled": true,
@@ -14649,34 +14397,6 @@
             "hidden": false,
             "hidden_from_flow_stats": false,
             "energy": 0.5,
-            "order": "a",
-            "productivity_bonus": 0
-        },
-        "parameter-9-recycling": {
-            "name": "parameter-9-recycling",
-            "enabled": true,
-            "category": "recycling",
-            "ingredients": [
-                {
-                    "type": "item",
-                    "name": "parameter-9",
-                    "amount": 1,
-                    "ignored_by_stats": 1
-                }
-            ],
-            "products": [
-                {
-                    "type": "item",
-                    "name": "parameter-9",
-                    "probability": 0.25,
-                    "amount": 1,
-                    "ignored_by_stats": 1,
-                    "ignored_by_productivity": 1
-                }
-            ],
-            "hidden": true,
-            "hidden_from_flow_stats": false,
-            "energy": 0.03125,
             "order": "a",
             "productivity_bonus": 0
         },
@@ -19392,19 +19112,19 @@
                     "name": "steel-plate",
                     "probability": 1,
                     "amount": 0,
-                    "extra_count_fraction": 0.25
+                    "extra_count_fraction": 0.125
                 },
                 {
                     "type": "item",
                     "name": "copper-plate",
                     "probability": 1,
-                    "amount": 1,
+                    "amount": 0,
                     "extra_count_fraction": 0.25
                 }
             ],
             "hidden": true,
             "hidden_from_flow_stats": false,
-            "energy": 0.1875,
+            "energy": 0.375,
             "order": "",
             "productivity_bonus": 0
         },
@@ -22626,33 +22346,39 @@
         "transport-belt": {
             "type": "transport-belt",
             "name": "transport-belt",
+            "module_inventory_size": 0,
             "belt_speed": 0.03125
         },
         "fast-transport-belt": {
             "type": "transport-belt",
             "name": "fast-transport-belt",
+            "module_inventory_size": 0,
             "belt_speed": 0.0625
         },
         "express-transport-belt": {
             "type": "transport-belt",
             "name": "express-transport-belt",
+            "module_inventory_size": 0,
             "belt_speed": 0.09375
         },
         "turbo-transport-belt": {
             "type": "transport-belt",
             "name": "turbo-transport-belt",
+            "module_inventory_size": 0,
             "belt_speed": 0.125
         },
         "pump": {
             "type": "pump",
             "name": "pump",
             "energy_usage": 483.33333333333331438552704639732837677001953125,
+            "module_inventory_size": 0,
             "pumping_speed": 20
         },
         "burner-mining-drill": {
             "type": "mining-drill",
             "name": "burner-mining-drill",
             "energy_usage": 2500,
+            "module_inventory_size": 0,
             "mining_speed": 0.25,
             "resource_categories": {
                 "basic-solid": true
@@ -22662,6 +22388,7 @@
             "type": "mining-drill",
             "name": "electric-mining-drill",
             "energy_usage": 1500,
+            "module_inventory_size": 3,
             "mining_speed": 0.5,
             "resource_categories": {
                 "basic-solid": true
@@ -22671,6 +22398,7 @@
             "type": "mining-drill",
             "name": "big-mining-drill",
             "energy_usage": 5000,
+            "module_inventory_size": 4,
             "mining_speed": 2.5,
             "resource_categories": {
                 "basic-solid": true,
@@ -22681,12 +22409,14 @@
             "type": "offshore-pump",
             "name": "offshore-pump",
             "energy_usage": 1000,
+            "module_inventory_size": 0,
             "pumping_speed": 20
         },
         "pumpjack": {
             "type": "mining-drill",
             "name": "pumpjack",
             "energy_usage": 1500,
+            "module_inventory_size": 2,
             "mining_speed": 1,
             "resource_categories": {
                 "basic-fluid": true
@@ -22696,6 +22426,7 @@
             "type": "furnace",
             "name": "stone-furnace",
             "energy_usage": 1500,
+            "module_inventory_size": 0,
             "crafting_categories": {
                 "smelting": true
             },
@@ -22707,6 +22438,7 @@
             "type": "furnace",
             "name": "steel-furnace",
             "energy_usage": 1500,
+            "module_inventory_size": 0,
             "crafting_categories": {
                 "smelting": true
             },
@@ -22718,6 +22450,7 @@
             "type": "furnace",
             "name": "electric-furnace",
             "energy_usage": 3000,
+            "module_inventory_size": 2,
             "crafting_categories": {
                 "smelting": true
             },
@@ -22729,6 +22462,7 @@
             "type": "assembling-machine",
             "name": "foundry",
             "energy_usage": 41666.6666666666642413474619388580322265625,
+            "module_inventory_size": 4,
             "crafting_categories": {
                 "metallurgy": true,
                 "pressing": true,
@@ -22744,6 +22478,7 @@
             "type": "furnace",
             "name": "recycler",
             "energy_usage": 3000,
+            "module_inventory_size": 4,
             "crafting_categories": {
                 "recycling": true,
                 "recycling-or-hand-crafting": true
@@ -22756,6 +22491,7 @@
             "type": "assembling-machine",
             "name": "biochamber",
             "energy_usage": 8333.333333333333939663134515285491943359375,
+            "module_inventory_size": 4,
             "crafting_categories": {
                 "organic": true,
                 "organic-or-hand-crafting": true,
@@ -22771,6 +22507,7 @@
             "type": "assembling-machine",
             "name": "captive-biter-spawner",
             "energy_usage": 1666.666666666666742457891814410686492919921875,
+            "module_inventory_size": 0,
             "crafting_categories": {
                 "captive-spawner-process": true,
                 "parameters": true
@@ -22783,6 +22520,7 @@
             "type": "assembling-machine",
             "name": "assembling-machine-1",
             "energy_usage": 1250,
+            "module_inventory_size": 0,
             "crafting_categories": {
                 "crafting": true,
                 "basic-crafting": true,
@@ -22799,6 +22537,7 @@
             "type": "assembling-machine",
             "name": "assembling-machine-2",
             "energy_usage": 2500,
+            "module_inventory_size": 2,
             "crafting_categories": {
                 "basic-crafting": true,
                 "crafting": true,
@@ -22823,6 +22562,7 @@
             "type": "assembling-machine",
             "name": "assembling-machine-3",
             "energy_usage": 6250,
+            "module_inventory_size": 4,
             "crafting_categories": {
                 "basic-crafting": true,
                 "crafting": true,
@@ -22847,6 +22587,7 @@
             "type": "assembling-machine",
             "name": "oil-refinery",
             "energy_usage": 7000,
+            "module_inventory_size": 3,
             "crafting_categories": {
                 "oil-processing": true,
                 "parameters": true
@@ -22859,6 +22600,7 @@
             "type": "assembling-machine",
             "name": "chemical-plant",
             "energy_usage": 3500,
+            "module_inventory_size": 3,
             "crafting_categories": {
                 "chemistry": true,
                 "chemistry-or-cryogenics": true,
@@ -22873,6 +22615,7 @@
             "type": "assembling-machine",
             "name": "centrifuge",
             "energy_usage": 5833.3333333333330301684327423572540283203125,
+            "module_inventory_size": 2,
             "crafting_categories": {
                 "centrifuging": true,
                 "parameters": true
@@ -22885,6 +22628,7 @@
             "type": "assembling-machine",
             "name": "electromagnetic-plant",
             "energy_usage": 33333.3333333333357586525380611419677734375,
+            "module_inventory_size": 5,
             "crafting_categories": {
                 "electromagnetics": true,
                 "electronics": true,
@@ -22900,6 +22644,7 @@
             "type": "assembling-machine",
             "name": "cryogenic-plant",
             "energy_usage": 25000,
+            "module_inventory_size": 8,
             "crafting_categories": {
                 "cryogenics": true,
                 "chemistry-or-cryogenics": true,
@@ -22914,6 +22659,7 @@
             "type": "rocket-silo",
             "name": "rocket-silo",
             "energy_usage": 4166.6666666666669698315672576427459716796875,
+            "module_inventory_size": 4,
             "crafting_categories": {
                 "rocket-building": true,
                 "parameters": true
@@ -22926,6 +22672,7 @@
             "type": "assembling-machine",
             "name": "crusher",
             "energy_usage": 9000,
+            "module_inventory_size": 2,
             "crafting_categories": {
                 "crushing": true,
                 "parameters": true
@@ -22937,6 +22684,7 @@
         "tree-plant": {
             "type": "plant",
             "name": "tree-plant",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -22952,6 +22700,7 @@
         "yumako-tree": {
             "type": "plant",
             "name": "yumako-tree",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -22967,6 +22716,7 @@
         "jellystem": {
             "type": "plant",
             "name": "jellystem",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -22982,6 +22732,7 @@
         "coal": {
             "type": "resource",
             "name": "coal",
+            "module_inventory_size": 0,
             "resource_category": "basic-solid",
             "mineable_properties": {
                 "mining_time": 1,
@@ -22998,6 +22749,7 @@
         "copper-ore": {
             "type": "resource",
             "name": "copper-ore",
+            "module_inventory_size": 0,
             "resource_category": "basic-solid",
             "mineable_properties": {
                 "mining_time": 1,
@@ -23014,6 +22766,7 @@
         "iron-ore": {
             "type": "resource",
             "name": "iron-ore",
+            "module_inventory_size": 0,
             "resource_category": "basic-solid",
             "mineable_properties": {
                 "mining_time": 1,
@@ -23030,6 +22783,7 @@
         "stone": {
             "type": "resource",
             "name": "stone",
+            "module_inventory_size": 0,
             "resource_category": "basic-solid",
             "mineable_properties": {
                 "mining_time": 1,
@@ -23046,6 +22800,7 @@
         "uranium-ore": {
             "type": "resource",
             "name": "uranium-ore",
+            "module_inventory_size": 0,
             "resource_category": "basic-solid",
             "mineable_properties": {
                 "mining_time": 2,
@@ -23064,6 +22819,7 @@
         "calcite": {
             "type": "resource",
             "name": "calcite",
+            "module_inventory_size": 0,
             "resource_category": "basic-solid",
             "mineable_properties": {
                 "mining_time": 1,
@@ -23080,6 +22836,7 @@
         "tungsten-ore": {
             "type": "resource",
             "name": "tungsten-ore",
+            "module_inventory_size": 0,
             "resource_category": "hard-solid",
             "mineable_properties": {
                 "mining_time": 5,
@@ -23096,6 +22853,7 @@
         "scrap": {
             "type": "resource",
             "name": "scrap",
+            "module_inventory_size": 0,
             "resource_category": "basic-solid",
             "mineable_properties": {
                 "mining_time": 0.5,
@@ -23112,6 +22870,7 @@
         "character": {
             "type": "character",
             "name": "character",
+            "module_inventory_size": 0,
             "crafting_categories": {
                 "crafting": true,
                 "electronics": true,
@@ -23128,6 +22887,7 @@
         "tree-01": {
             "type": "tree",
             "name": "tree-01",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.55,
                 "products": [
@@ -23143,6 +22903,7 @@
         "tree-02": {
             "type": "tree",
             "name": "tree-02",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.55,
                 "products": [
@@ -23158,6 +22919,7 @@
         "tree-02-red": {
             "type": "tree",
             "name": "tree-02-red",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.55,
                 "products": [
@@ -23173,6 +22935,7 @@
         "tree-03": {
             "type": "tree",
             "name": "tree-03",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.55,
                 "products": [
@@ -23188,6 +22951,7 @@
         "tree-04": {
             "type": "tree",
             "name": "tree-04",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.55,
                 "products": [
@@ -23203,6 +22967,7 @@
         "tree-05": {
             "type": "tree",
             "name": "tree-05",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.55,
                 "products": [
@@ -23218,6 +22983,7 @@
         "tree-06": {
             "type": "tree",
             "name": "tree-06",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.55,
                 "products": [
@@ -23233,6 +22999,7 @@
         "tree-06-brown": {
             "type": "tree",
             "name": "tree-06-brown",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.55,
                 "products": [
@@ -23248,6 +23015,7 @@
         "tree-07": {
             "type": "tree",
             "name": "tree-07",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.55,
                 "products": [
@@ -23263,6 +23031,7 @@
         "tree-08": {
             "type": "tree",
             "name": "tree-08",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.55,
                 "products": [
@@ -23278,6 +23047,7 @@
         "tree-08-brown": {
             "type": "tree",
             "name": "tree-08-brown",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.55,
                 "products": [
@@ -23293,6 +23063,7 @@
         "tree-08-red": {
             "type": "tree",
             "name": "tree-08-red",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.55,
                 "products": [
@@ -23308,6 +23079,7 @@
         "tree-09": {
             "type": "tree",
             "name": "tree-09",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.55,
                 "products": [
@@ -23323,6 +23095,7 @@
         "tree-09-brown": {
             "type": "tree",
             "name": "tree-09-brown",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.55,
                 "products": [
@@ -23338,6 +23111,7 @@
         "tree-09-red": {
             "type": "tree",
             "name": "tree-09-red",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.55,
                 "products": [
@@ -23353,6 +23127,7 @@
         "dead-dry-hairy-tree": {
             "type": "tree",
             "name": "dead-dry-hairy-tree",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -23368,6 +23143,7 @@
         "dead-grey-trunk": {
             "type": "tree",
             "name": "dead-grey-trunk",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -23383,6 +23159,7 @@
         "dead-tree-desert": {
             "type": "tree",
             "name": "dead-tree-desert",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -23398,6 +23175,7 @@
         "dry-hairy-tree": {
             "type": "tree",
             "name": "dry-hairy-tree",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -23413,6 +23191,7 @@
         "dry-tree": {
             "type": "tree",
             "name": "dry-tree",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -23428,6 +23207,7 @@
         "ashland-lichen-tree": {
             "type": "tree",
             "name": "ashland-lichen-tree",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -23443,6 +23223,7 @@
         "ashland-lichen-tree-flaming": {
             "type": "tree",
             "name": "ashland-lichen-tree-flaming",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -23458,6 +23239,7 @@
         "slipstack": {
             "type": "tree",
             "name": "slipstack",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -23479,6 +23261,7 @@
         "funneltrunk": {
             "type": "tree",
             "name": "funneltrunk",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -23500,6 +23283,7 @@
         "hairyclubnub": {
             "type": "tree",
             "name": "hairyclubnub",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -23521,6 +23305,7 @@
         "teflilly": {
             "type": "tree",
             "name": "teflilly",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -23542,6 +23327,7 @@
         "lickmaw": {
             "type": "tree",
             "name": "lickmaw",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -23557,6 +23343,7 @@
         "stingfrond": {
             "type": "tree",
             "name": "stingfrond",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -23578,6 +23365,7 @@
         "boompuff": {
             "type": "tree",
             "name": "boompuff",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -23599,6 +23387,7 @@
         "sunnycomb": {
             "type": "tree",
             "name": "sunnycomb",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -23614,6 +23403,7 @@
         "cuttlepop": {
             "type": "tree",
             "name": "cuttlepop",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.5,
                 "products": [
@@ -23635,6 +23425,7 @@
         "water-cane": {
             "type": "tree",
             "name": "water-cane",
+            "module_inventory_size": 0,
             "mineable_properties": {
                 "mining_time": 0.1,
                 "products": [
@@ -23650,6 +23441,7 @@
         "crude-oil": {
             "type": "resource",
             "name": "crude-oil",
+            "module_inventory_size": 0,
             "resource_category": "basic-fluid",
             "mineable_properties": {
                 "mining_time": 1,
@@ -23666,6 +23458,7 @@
         "lithium-brine": {
             "type": "resource",
             "name": "lithium-brine",
+            "module_inventory_size": 0,
             "resource_category": "basic-fluid",
             "mineable_properties": {
                 "mining_time": 1,
@@ -23682,6 +23475,7 @@
         "sulfuric-acid-geyser": {
             "type": "resource",
             "name": "sulfuric-acid-geyser",
+            "module_inventory_size": 0,
             "resource_category": "basic-fluid",
             "mineable_properties": {
                 "mining_time": 1,
@@ -23698,6 +23492,7 @@
         "fluorine-vent": {
             "type": "resource",
             "name": "fluorine-vent",
+            "module_inventory_size": 0,
             "resource_category": "basic-fluid",
             "mineable_properties": {
                 "mining_time": 1,

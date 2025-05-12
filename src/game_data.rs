@@ -88,6 +88,7 @@ pub struct Entity {
     pub belt_speed: Option<f64>,
     pub mineable_properties: Option<MineableProperties>,
     pub resource_category: Option<String>,
+    pub module_inventory_size: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -110,4 +111,6 @@ pub struct Crafter {
     pub name: String,
     pub energy_usage: f64,
     pub crafting_speed: f64,
+    #[serde(default)] // only for compatibility
+    pub module_inventory_size: u64,
 }

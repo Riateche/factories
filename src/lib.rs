@@ -26,9 +26,18 @@ pub struct Snippet {
     pub solved: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Module {
+    pub name: String,
+    pub energy_delta_percent: f64,
+    pub speed_delta_percent: f64,
+    pub productivity_delta_percent: f64,
+}
+
 pub struct Planner {
     pub config: Config,
     pub game_data: GameData,
+    pub modules: Vec<Module>,
     pub all_items: BTreeSet<String>,
     pub reachable_items: BTreeSet<String>,
     pub crafters: BTreeMap<String, Crafter>,
@@ -201,15 +210,56 @@ pub fn init() -> anyhow::Result<Planner> {
                     crafting_speed: entity.crafting_speed.with_context(|| {
                         format!("missing crafting_speed for crafter: {entity:?}")
                     })?,
+                    module_inventory_size: entity.module_inventory_size,
                 },
             );
         }
     }
 
+    let modules = vec![
+        Module {
+            name: "speed-module".into(),
+            energy_delta_percent: 50.,
+            speed_delta_percent: 20.,
+            productivity_delta_percent: 0.,
+        },
+        Module {
+            name: "speed-module-2".into(),
+            energy_delta_percent: 60.,
+            speed_delta_percent: 30.,
+            productivity_delta_percent: 0.,
+        },
+        Module {
+            name: "speed-module-3".into(),
+            energy_delta_percent: 70.,
+            speed_delta_percent: 50.,
+            productivity_delta_percent: 0.,
+        },
+        Module {
+            name: "productivity-module".into(),
+            energy_delta_percent: 40.,
+            speed_delta_percent: -5.,
+            productivity_delta_percent: 4.0,
+        },
+        Module {
+            name: "productivity-module-2".into(),
+            energy_delta_percent: 60.,
+            speed_delta_percent: -10.,
+            productivity_delta_percent: 6.0,
+        },
+        Module {
+            name: "productivity-module-3".into(),
+            energy_delta_percent: 80.,
+            speed_delta_percent: -15.,
+            productivity_delta_percent: 10.0,
+        },
+    ];
+
     Ok(Planner {
         config,
         game_data,
         all_items,
+        modules,
         reachable_items,
         crafters,
         category_to_crafter,
@@ -235,6 +285,7 @@ impl Planner {
                 name: "source".into(),
                 energy_usage: 0.0,
                 crafting_speed: 1.0,
+                module_inventory_size: 0,
             },
             crafter_count: 1.0,
             recipe: Recipe {
@@ -256,6 +307,8 @@ impl Planner {
                 order: String::new(),
                 productivity_bonus: 0.0,
             },
+            modules: Vec::new(),
+            beacons: Vec::new(),
             count_constraint: None,
         });
         Ok(())
@@ -270,6 +323,7 @@ impl Planner {
                 name: "sink".into(),
                 energy_usage: 0.0,
                 crafting_speed: 1.0,
+                module_inventory_size: 0,
             },
             crafter_count: 1.0,
             recipe: Recipe {
@@ -288,6 +342,8 @@ impl Planner {
                 order: String::new(),
                 productivity_bonus: 0.0,
             },
+            modules: Vec::new(),
+            beacons: Vec::new(),
             count_constraint: None,
         });
         Ok(())
@@ -346,6 +402,8 @@ impl Planner {
         self.snippet.machines.push(Machine {
             crafter,
             crafter_count: 1.0,
+            modules: Vec::new(),
+            beacons: Vec::new(),
             recipe: recipe.clone(),
             count_constraint: None,
         });
