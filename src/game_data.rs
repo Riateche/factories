@@ -46,6 +46,16 @@ pub struct Recipe {
     // The string used to alphabetically sort these prototypes. It is a simple string that has no additional semantic meaning.
     pub order: String,
     pub productivity_bonus: f64,
+    pub allowed_effects: Effects,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct Effects {
+    pub consumption: bool,
+    pub speed: bool,
+    pub productivity: bool,
+    pub pollution: bool,
+    pub quality: bool,
 }
 
 // Skipped "fluidbox_index", "fluidbox_multiplier", "ignored_by_stats" properties
@@ -61,6 +71,8 @@ pub struct Ingredient {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Product {
     pub amount: f64,
+    #[serde(default)]
+    pub ignored_by_productivity: f64,
     pub name: String,
     #[serde(rename = "type")]
     pub type_: String, // item or fluid

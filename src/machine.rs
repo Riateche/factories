@@ -76,14 +76,16 @@ impl Machine {
             .flatten()
             .map(|module| module.productivity_delta_percent)
             .sum();
-        let prod_percents =
-            100. + module_prod_percents + beacon_transmission_strength * beacon_prod_percents;
+        let prod_percents = 100.
+            + module_prod_percents
+            + beacon_transmission_strength * beacon_prod_percents
+            + self.recipe.productivity_bonus;
 
         let output_speed = (prod_percents / 100.) * crafts_per_second;
 
         self.recipe.products.iter().map(move |product| ItemSpeed {
             item: product.name.clone(),
-            speed: output_speed * product.amount,
+            speed: output_speed * (product.amount - product.ignored_by_productivity),
         })
     }
 

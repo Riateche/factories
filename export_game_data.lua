@@ -35,6 +35,7 @@ for k, recipe in pairs(game.player.force.recipes) do
   for _, prop in pairs(recipe_properties) do
 	recipe_table[prop] = recipe[prop]
   end
+  recipe_table["allowed_effects"] = recipe.prototype.allowed_effects
   recipes_table[k] = recipe_table
   num_recipes = num_recipes + 1
 end

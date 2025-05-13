@@ -612,7 +612,15 @@ impl MyApp {
                                     ui.horizontal(|ui| {
                                         ui.label("Add module:");
                                         let mut added = false;
-                                        for module in &self.modules {
+                                        let mut allowed_modules = vec![&self.default_speed_module];
+                                        if self.planner.snippet.machines[i]
+                                            .recipe
+                                            .allowed_effects
+                                            .productivity
+                                        {
+                                            allowed_modules.push(&self.default_productivity_module);
+                                        }
+                                        for module in allowed_modules {
                                             if ui
                                                 .image(icon_url(&module.name))
                                                 .interact(Sense::click())

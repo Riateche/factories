@@ -17,8 +17,8 @@ pub struct MyApp {
     // Static data
     pub all_recipe_menu_items: Vec<String>,
     pub belt_speeds: Vec<(f64, String)>,
-    pub modules: Vec<Module>,
     pub default_speed_module: Module,
+    pub default_productivity_module: Module,
 
     // Global
     pub planner: Planner,
@@ -102,7 +102,7 @@ impl MyApp {
             _ => panic!("invalid module_tier in config, expected 1, 2 or 3"),
         };
         let default_speed_module = planner.modules.get(speed_module_name).unwrap().clone();
-        let default_prod_module = planner.modules.get(prod_module_name).unwrap().clone();
+        let default_productivity_module = planner.modules.get(prod_module_name).unwrap().clone();
 
         let mut app = MyApp {
             planner,
@@ -124,8 +124,8 @@ impl MyApp {
             replace_with_craft_index: None,
             belt_speeds,
             focus_machine_constraint_input: false,
-            modules: vec![default_speed_module.clone(), default_prod_module],
             default_speed_module,
+            default_productivity_module,
             num_beacons: String::new(),
         };
         app.all_recipe_menu_items = app
