@@ -2,7 +2,7 @@ use {
     crate::{
         config::Config,
         game_data::GameData,
-        machine::{Crafter, Module},
+        machine::{Crafter, Module, ModuleType},
     },
     anyhow::{bail, Context},
     std::{
@@ -13,6 +13,7 @@ use {
     tracing::trace,
 };
 
+#[derive(Debug)]
 pub struct Info {
     pub config: Config,
     pub game_data: GameData,
@@ -106,36 +107,42 @@ impl Info {
         let modules = [
             Module {
                 name: "speed-module".into(),
+                type_: ModuleType::Speed,
                 energy_delta_percent: 50.,
                 speed_delta_percent: 20.,
                 productivity_delta_percent: 0.,
             },
             Module {
                 name: "speed-module-2".into(),
+                type_: ModuleType::Speed,
                 energy_delta_percent: 60.,
                 speed_delta_percent: 30.,
                 productivity_delta_percent: 0.,
             },
             Module {
                 name: "speed-module-3".into(),
+                type_: ModuleType::Speed,
                 energy_delta_percent: 70.,
                 speed_delta_percent: 50.,
                 productivity_delta_percent: 0.,
             },
             Module {
                 name: "productivity-module".into(),
+                type_: ModuleType::Productivity,
                 energy_delta_percent: 40.,
                 speed_delta_percent: -5.,
                 productivity_delta_percent: 4.0,
             },
             Module {
                 name: "productivity-module-2".into(),
+                type_: ModuleType::Productivity,
                 energy_delta_percent: 60.,
                 speed_delta_percent: -10.,
                 productivity_delta_percent: 6.0,
             },
             Module {
                 name: "productivity-module-3".into(),
+                type_: ModuleType::Productivity,
                 energy_delta_percent: 80.,
                 speed_delta_percent: -15.,
                 productivity_delta_percent: 10.0,
@@ -152,5 +159,23 @@ impl Info {
             crafters,
             category_to_crafter,
         })
+    }
+
+    pub fn auto_select_crafter(&self, crafters: &[String]) -> Option<String> {
+        if crafters.len() == 1 {
+            Some(crafters[0].clone())
+        } else if crafters.iter().any(|c| c == &self.config.assembler_type) {
+            Some(self.config.assembler_type.clone())
+        } else if crafters.iter().any(|c| c == &self.config.furnace_type) {
+            Some(self.config.furnace_type.clone())
+        } else {
+            None
+        }
+    }
+
+    pub fn module(&self, name: &str) -> anyhow::Result<&Module> {
+        self.modules
+            .get(name)
+            .with_context(|| format!("invalid module name: {name:?}"))
     }
 }

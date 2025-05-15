@@ -1,5 +1,6 @@
 pub mod analyze;
 pub mod config;
+pub mod flowchart;
 pub mod game_data;
 pub mod info;
 pub mod machine;

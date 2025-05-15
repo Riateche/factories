@@ -13,9 +13,16 @@ pub struct Crafter {
     pub module_inventory_size: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ModuleType {
+    Speed,
+    Productivity,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Module {
     pub name: String,
+    pub type_: ModuleType,
     pub energy_delta_percent: f64,
     pub speed_delta_percent: f64,
     pub productivity_delta_percent: f64,
@@ -23,13 +30,11 @@ pub struct Module {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Machine {
-    // TODO: non-crafting machines?
     pub crafter: Crafter,
     pub crafter_count: f64,
     pub modules: Vec<Module>,
     pub beacons: Vec<Vec<Module>>,
     pub recipe: Recipe,
-    pub count_constraint: Option<f64>,
 }
 
 #[derive(Debug, Clone)]
@@ -49,27 +54,27 @@ impl Machine {
 
     // Not including productivity.
     pub fn crafts_per_second(&self) -> f64 {
-        let beacon_transmission_strength = dbg!(self.beacon_transmission_strength());
+        let beacon_transmission_strength = self.beacon_transmission_strength();
         let module_speed_percents: f64 = self
             .modules
             .iter()
             .map(|module| module.speed_delta_percent)
             .sum();
-        let beacon_speed_percents: f64 = dbg!(self
+        let beacon_speed_percents: f64 = self
             .beacons
             .iter()
             .flatten()
             .map(|module| module.speed_delta_percent)
-            .sum());
+            .sum();
         let speed_percents =
             100. + module_speed_percents + beacon_transmission_strength * beacon_speed_percents;
 
-        (dbg!(speed_percents) / 100.) * self.crafter.crafting_speed * self.crafter_count
+        (speed_percents / 100.) * self.crafter.crafting_speed * self.crafter_count
             / self.recipe.energy
     }
 
     pub fn input_speeds(&self) -> impl Iterator<Item = ItemSpeed> + '_ {
-        let crafts_per_second = dbg!(self.crafts_per_second());
+        let crafts_per_second = self.crafts_per_second();
         self.recipe.ingredients.iter().map(move |ing| ItemSpeed {
             item: ing.name.clone(),
             speed: -crafts_per_second * ing.amount,

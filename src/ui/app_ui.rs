@@ -3,11 +3,12 @@ use {
         app::{name_or_untitled, recipe_menu_items, MyApp},
         drop_down::DropDownBox,
     },
-    crate::rf,
+    crate::{rf, snippet::SnippetMachine},
     eframe::egui::{self, Color32, ComboBox, Key, Sense},
     egui::{Response, ScrollArea, TextEdit, Ui, Widget},
     itertools::Itertools,
     std::{env, path::Path, time::Duration},
+    tracing::warn,
     url::Url,
 };
 
@@ -61,7 +62,7 @@ impl MyApp {
                         });
                         ui.horizontal(|ui| {
                             ui.heading("");
-                            ui.label(if self.editor.snippet.solved {
+                            ui.label(if self.editor.solved() {
                                 "✔ Solved"
                             } else {
                                 "🗙 Unsolved"
@@ -155,12 +156,13 @@ impl MyApp {
                 ui.heading("Machines");
                 let show_names = ui.input(|i| i.modifiers.alt);
                 egui::Frame::group(ui.style()).show(ui, |ui| {
-                    if self.editor.snippet.machines.is_empty() {
+                    if self.editor.machines().is_empty() {
                         ui.label("No machines.");
                     }
                     let mut index_to_remove = None;
                     let mut recipe_to_add = None;
-                    for (i, machine) in self.editor.snippet.machines.iter().enumerate() {
+                    for (i, editor_machine) in self.editor.machines().iter().enumerate() {
+                        let machine = &editor_machine.machine;
                         ui.horizontal(|ui| {
                             let item_speeds = machine.item_speeds().collect_vec();
                             let mut is_first = true;
@@ -278,7 +280,8 @@ impl MyApp {
                                             &machine.recipe.ingredients[0].name
                                         };
                                         let mut menu_items_and_hints = Vec::new();
-                                        for recipe in self.editor.info.game_data.recipes.values() {
+                                        for recipe in self.editor.info().game_data.recipes.values()
+                                        {
                                             let can_replace = if machine.crafter.name == "source" {
                                                 recipe.products.iter().any(|p| &p.name == item)
                                             } else {
@@ -312,7 +315,8 @@ impl MyApp {
                                                     )
                                                 }
                                             };
-                                            for menu_item in recipe_menu_items(&self.editor, recipe)
+                                            for menu_item in
+                                                recipe_menu_items(self.editor.info(), recipe)
                                             {
                                                 menu_items_and_hints
                                                     .push((menu_item, hint.clone()));
@@ -370,29 +374,37 @@ impl MyApp {
                                         self.replace_with_craft_index = None;
                                     }
                                 }
-                            }
-                            let r = ui.button("Edit");
-                            if r.contains_pointer() {
-                                egui::show_tooltip(
-                                    ui.ctx(),
-                                    ui.layer_id(),
-                                    egui::Id::new("Edit"),
-                                    |ui| {
-                                        ui.label("Edit");
-                                    },
-                                );
-                            }
-                            if r.clicked() {
-                                self.edit_machine_index = Some(i);
-                                self.machine_count_constraint = machine
-                                    .count_constraint
-                                    .map(|c| c.to_string())
-                                    .unwrap_or_default();
-                                self.num_beacons = machine.beacons.len().to_string();
-                                self.focus_machine_constraint_input = true;
-                            }
-                            if !(machine.crafter.name == "source" || machine.crafter.name == "sink")
-                            {
+                            } else {
+                                // not source or sink
+                                let r = ui.button("Edit");
+                                if r.contains_pointer() {
+                                    egui::show_tooltip(
+                                        ui.ctx(),
+                                        ui.layer_id(),
+                                        egui::Id::new("Edit"),
+                                        |ui| {
+                                            ui.label("Edit");
+                                        },
+                                    );
+                                }
+                                if r.clicked() {
+                                    self.edit_machine_index = Some(i);
+                                    self.machine_count_constraint = match &editor_machine.snippet {
+                                        crate::snippet::SnippetMachine::Source { .. }
+                                        | crate::snippet::SnippetMachine::Sink { .. } => {
+                                            unreachable!()
+                                        }
+                                        crate::snippet::SnippetMachine::Crafter {
+                                            count_constraint,
+                                            ..
+                                        } => count_constraint
+                                            .map(|c| c.to_string())
+                                            .unwrap_or_default(),
+                                    };
+                                    self.num_beacons = machine.beacons.len().to_string();
+                                    self.focus_machine_constraint_input = true;
+                                }
+
                                 if ui.button("🗙").clicked() {
                                     index_to_remove = Some(i);
                                 }
@@ -401,8 +413,9 @@ impl MyApp {
                     }
                     if let Some(i) = index_to_remove {
                         self.saved = false;
-                        self.editor.snippet.solved = false;
-                        self.editor.snippet.machines.remove(i);
+                        self.alerts.clear();
+                        let r = self.editor.remove_machine(i);
+                        self.show_error(&r);
                         self.after_machines_changed();
                     }
                     if let Some(name) = recipe_to_add {
@@ -412,14 +425,17 @@ impl MyApp {
                 });
 
                 if let Some(i) = self.edit_machine_index {
-                    if i < self.editor.snippet.machines.len() {
+                    if i < self.editor.machines().len() {
                         ui.horizontal(|ui| {
                             ui.heading(format!(
                                 "Edit machine: {}(",
-                                self.editor.snippet.machines[i].crafter.name,
+                                self.editor.machines()[i].machine.crafter.name,
                             ));
-                            ui.image(icon_url(&self.editor.snippet.machines[i].recipe.name));
-                            ui.heading(format!("{})", self.editor.snippet.machines[i].recipe.name));
+                            ui.image(icon_url(&self.editor.machines()[i].machine.recipe.name));
+                            ui.heading(format!(
+                                "{})",
+                                self.editor.machines()[i].machine.recipe.name
+                            ));
                         });
 
                         egui::Frame::group(ui.style()).show(ui, |ui| {
@@ -442,29 +458,33 @@ impl MyApp {
                                     self.show_error(&r.as_ref().map(|_| ()));
                                     if let Ok(count) = r {
                                         self.saved = false;
-                                        self.editor.snippet.solved = false;
-                                        self.editor.snippet.machines[i].count_constraint =
-                                            Some(count);
+                                        self.alerts.clear();
+                                        let r = self
+                                            .editor
+                                            .set_machine_count_constraint(i, Some(count));
+                                        self.show_error(&r);
                                         self.after_constraint_changed();
                                     }
                                 }
                             });
-                            if self.editor.snippet.machines[i]
+                            if self.editor.machines()[i]
+                                .machine
                                 .crafter
                                 .module_inventory_size
                                 > 0
                             {
-                                let num_empty_module_slots = self.editor.snippet.machines[i]
+                                let num_empty_module_slots = self.editor.machines()[i]
+                                    .machine
                                     .crafter
                                     .module_inventory_size
                                     .saturating_sub(
-                                        self.editor.snippet.machines[i].modules.len() as u64
+                                        self.editor.machines()[i].machine.modules.len() as u64,
                                     );
                                 ui.horizontal(|ui| {
                                     ui.label("Modules:");
                                     let mut index_to_remove = None;
                                     for (ii, module) in
-                                        self.editor.snippet.machines[i].modules.iter().enumerate()
+                                        self.editor.machines()[i].machine.modules.iter().enumerate()
                                     {
                                         if ui
                                             .image(icon_url(&module.name))
@@ -486,12 +506,15 @@ impl MyApp {
                                             );
                                         }
                                     }
-                                    if !self.editor.snippet.machines[i].modules.is_empty() {
+                                    if !self.editor.machines()[i].machine.modules.is_empty() {
                                         ui.label("(Click on module to remove it)");
                                     }
 
                                     if let Some(ii) = index_to_remove {
-                                        self.editor.snippet.machines[i].modules.remove(ii);
+                                        self.saved = false;
+                                        self.alerts.clear();
+                                        let r = self.editor.remove_module(i, ii);
+                                        self.show_error(&r);
                                         self.after_machines_changed();
                                     }
                                 });
@@ -501,7 +524,8 @@ impl MyApp {
                                         ui.label("Add module:");
                                         let mut added = false;
                                         let mut allowed_modules = vec![&self.default_speed_module];
-                                        if self.editor.snippet.machines[i]
+                                        if self.editor.machines()[i]
+                                            .machine
                                             .recipe
                                             .allowed_effects
                                             .productivity
@@ -520,9 +544,14 @@ impl MyApp {
                                                     1
                                                 };
                                                 for _ in 0..num_added {
-                                                    self.editor.snippet.machines[i]
-                                                        .modules
-                                                        .push(module.clone());
+                                                    self.saved = false;
+                                                    self.alerts.clear();
+                                                    if let Err(err) =
+                                                        self.editor.add_module(i, &module.name)
+                                                    {
+                                                        warn!("error: {err}");
+                                                    }
+                                                    //self.show_error(&r);
                                                     added = true;
                                                 }
                                             }
@@ -546,16 +575,22 @@ impl MyApp {
                                     {
                                         match self.num_beacons.parse::<u32>() {
                                             Ok(num_beacons) => {
-                                                self.editor.snippet.machines[i].beacons = (0
-                                                    ..num_beacons)
-                                                    .map(|_| {
-                                                        (0..2)
-                                                            .map(|_| {
-                                                                self.default_speed_module.clone()
-                                                            })
-                                                            .collect_vec()
-                                                    })
-                                                    .collect();
+                                                self.saved = false;
+                                                self.alerts.clear();
+                                                let r = self.editor.set_beacons(
+                                                    i,
+                                                    (0..num_beacons)
+                                                        .map(|_| {
+                                                            (0..2)
+                                                                .map(|_| {
+                                                                    self.default_speed_module
+                                                                        .clone()
+                                                                })
+                                                                .collect_vec()
+                                                        })
+                                                        .collect(),
+                                                );
+                                                self.show_error(&r);
                                                 self.after_machines_changed();
                                             }
                                             Err(err) => {
@@ -577,7 +612,7 @@ impl MyApp {
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     let mut constraint_to_delete = None;
                     let mut any_constraints = false;
-                    for (item, speed) in &self.editor.snippet.item_speed_constraints {
+                    for (item, speed) in self.editor.item_speed_constraints() {
                         ui.horizontal(|ui| {
                             ui.label(format!("• {}: {}/s", item, speed));
                             if ui.button("Edit").clicked() {
@@ -594,22 +629,29 @@ impl MyApp {
                     }
                     if let Some(item) = constraint_to_delete {
                         self.saved = false;
-                        self.editor.snippet.solved = false;
-                        self.editor.snippet.item_speed_constraints.remove(&item);
+                        self.alerts.clear();
+                        let r = self.editor.set_item_speed_constraint(&item, None);
+                        self.show_error(&r);
                         self.after_constraint_changed();
                     }
                     let mut constraint_to_delete2 = None;
-                    for (i, machine) in self.editor.snippet.machines.iter().enumerate() {
-                        if let Some(count) = machine.count_constraint {
+                    for (i, machine) in self.editor.machines().iter().enumerate() {
+                        if let SnippetMachine::Crafter {
+                            count_constraint: Some(count),
+                            ..
+                        } = &machine.snippet
+                        {
                             ui.horizontal(|ui| {
                                 ui.label(format!(
                                     "• {} × {}({})",
-                                    count, machine.crafter.name, machine.recipe.name
+                                    count,
+                                    machine.machine.crafter.name,
+                                    machine.machine.recipe.name
                                 ));
                                 if ui.button("Edit").clicked() {
                                     self.edit_machine_index = Some(i);
                                     self.machine_count_constraint = count.to_string();
-                                    self.num_beacons = machine.beacons.len().to_string();
+                                    self.num_beacons = machine.machine.beacons.len().to_string();
                                     self.focus_machine_constraint_input = true;
                                 }
                                 if ui.button("🗙").clicked() {
@@ -621,8 +663,9 @@ impl MyApp {
                     }
                     if let Some(index) = constraint_to_delete2 {
                         self.saved = false;
-                        self.editor.snippet.solved = false;
-                        self.editor.snippet.machines[index].count_constraint = None;
+                        self.alerts.clear();
+                        let r = self.editor.set_machine_count_constraint(index, None);
+                        self.show_error(&r);
                         self.after_constraint_changed();
                     }
                     if any_constraints {
@@ -662,15 +705,15 @@ impl MyApp {
                                 && ui.input(|i| i.key_pressed(Key::Enter)))
                         {
                             self.saved = false;
-                            self.editor.snippet.solved = false;
                             let r = self
                                 .item_speed_contraint_speed
                                 .parse()
                                 .map_err(anyhow::Error::from)
                                 .and_then(|speed| {
-                                    self.editor.add_item_speed_constraint(
+                                    self.alerts.clear();
+                                    self.editor.set_item_speed_constraint(
                                         &self.item_speed_contraint_item,
-                                        speed,
+                                        Some(speed),
                                     )
                                 });
                             self.show_error(&r);
@@ -694,6 +737,7 @@ impl MyApp {
                         self.show_error(&r);
                     }
                     if ui.button("Solve again").clicked() {
+                        self.alerts.clear();
                         self.after_machines_changed();
                     }
                 });

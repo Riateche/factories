@@ -1,10 +1,5 @@
 use {
-    crate::{
-        game_data::Recipe,
-        machine::Module,
-        rf,
-        snippet::{Snippet, SnippetEditor},
-    },
+    crate::{game_data::Recipe, info::Info, machine::Module, rf, snippet::SnippetEditor},
     anyhow::{format_err, Context},
     itertools::Itertools,
     ordered_float::OrderedFloat,
@@ -85,7 +80,7 @@ impl MyApp {
             );
         }
         let mut belt_speeds = editor
-            .info
+            .info()
             .game_data
             .entities
             .values()
@@ -101,15 +96,20 @@ impl MyApp {
             .collect_vec();
         belt_speeds.sort_by_key(|(speed, _)| OrderedFloat(*speed));
 
-        let (speed_module_name, prod_module_name) = match editor.info.config.module_tier {
+        let (speed_module_name, prod_module_name) = match editor.info().config.module_tier {
             1 => ("speed-module", "productivity-module"),
             2 => ("speed-module-2", "productivity-module-2"),
             3 => ("speed-module-3", "productivity-module-3"),
             _ => panic!("invalid module_tier in config, expected 1, 2 or 3"),
         };
-        let default_speed_module = editor.info.modules.get(speed_module_name).unwrap().clone();
+        let default_speed_module = editor
+            .info()
+            .modules
+            .get(speed_module_name)
+            .unwrap()
+            .clone();
         let default_productivity_module =
-            editor.info.modules.get(prod_module_name).unwrap().clone();
+            editor.info().modules.get(prod_module_name).unwrap().clone();
 
         let mut app = MyApp {
             editor,
@@ -137,37 +137,26 @@ impl MyApp {
         };
         app.all_recipe_menu_items = app
             .editor
-            .info
+            .info()
             .game_data
             .recipes
             .values()
-            .flat_map(|recipe| recipe_menu_items(&app.editor, recipe))
+            .flat_map(|recipe| recipe_menu_items(app.editor.info(), recipe))
             .collect();
+
+        tracing::info!("test info");
         Ok(app)
     }
 
     pub fn add_recipe(&mut self, text: &str) -> anyhow::Result<()> {
         self.saved = false;
-        self.editor.snippet.solved = false;
-        let add_auto_constraint = self.editor.snippet.machines.is_empty()
-            && self.editor.snippet.item_speed_constraints.is_empty();
-
+        self.alerts.clear();
         if let Some((recipe, machine)) = text.split_once(" @ ") {
-            self.editor.create_machine(recipe, Some(machine))?;
+            self.editor.add_crafter(recipe, Some(machine))?;
         } else {
-            self.editor.create_machine(text, None)?;
+            self.editor.add_crafter(text, None)?;
         };
         self.recipe_search_text.clear();
-        if add_auto_constraint {
-            if let Some(product) = self.editor.snippet.machines[0]
-                .recipe
-                .products
-                .get(0)
-                .cloned()
-            {
-                self.editor.add_item_speed_constraint(&product.name, 1.0)?;
-            }
-        }
         self.after_machines_changed();
         Ok(())
     }
@@ -185,7 +174,8 @@ impl MyApp {
             .unwrap();
         }
         writeln!(out, "flowchart TD",).unwrap();
-        for (index, machine) in self.editor.snippet.machines.iter().enumerate() {
+        for (index, machine) in self.editor.machines().iter().enumerate() {
+            let machine = &machine.machine;
             let (left_bracket, right_bracket) = if machine.crafter.name == "source" {
                 ("[\\", "/]")
             } else if machine.crafter.name == "sink" {
@@ -230,12 +220,12 @@ impl MyApp {
         for item in all_items {
             let sources = self
                 .editor
-                .snippet
-                .machines
+                .machines()
                 .iter()
                 .enumerate()
                 .filter_map(|(machine_index, machine)| {
                     machine
+                        .machine
                         .item_speeds()
                         .into_iter()
                         .find(|item_speed| item_speed.item == item && item_speed.speed > 0.0)
@@ -245,12 +235,12 @@ impl MyApp {
 
             let mut destinations: VecDeque<_> = self
                 .editor
-                .snippet
-                .machines
+                .machines()
                 .iter()
                 .enumerate()
                 .filter_map(|(machine_index, machine)| {
                     machine
+                        .machine
                         .item_speeds()
                         .into_iter()
                         .find(|item_speed| item_speed.item == item && item_speed.speed < 0.0)
@@ -335,10 +325,7 @@ impl MyApp {
 
     pub fn load_snippet(&mut self, name: &str) -> anyhow::Result<()> {
         self.generation += 1;
-        let snippet = serde_json::from_str::<Snippet>(&fs_err::read_to_string(format!(
-            "snippets/{name}.json"
-        ))?)?;
-        self.editor.snippet = snippet;
+        self.editor.load_snippet(format!("snippets/{name}.json"))?;
         self.snippet_name = name.into();
         self.saved = true;
         Ok(())
@@ -348,10 +335,10 @@ impl MyApp {
         if self.snippet_name.is_empty() {
             return Ok(());
         }
-        fs_err::write(
-            format!("snippets/{}.json", name_or_untitled(&self.snippet_name)),
-            serde_json::to_string_pretty(&self.editor.snippet)?,
-        )?;
+        self.editor.save_snippet(format!(
+            "snippets/{}.json",
+            name_or_untitled(&self.snippet_name)
+        ))?;
         self.save_chart()?;
         self.saved = true;
         self.snippet_names.insert(self.snippet_name.clone());
@@ -368,19 +355,14 @@ impl MyApp {
     }
 
     pub fn after_machines_changed(&mut self) {
-        self.alerts.clear();
         self.generation += 1;
-        let r = self
-            .editor
-            .auto_refresh()
-            .and_then(|()| self.save_snippet());
+        let r = self.save_snippet();
         self.show_error(&r);
     }
 
     pub fn after_constraint_changed(&mut self) {
-        self.alerts.clear();
         self.generation += 1;
-        let r = self.editor.solve().and_then(|()| self.save_snippet());
+        let r = self.save_snippet();
         self.show_error(&r);
     }
 
@@ -389,12 +371,11 @@ impl MyApp {
         self.generation += 1;
         self.snippet_name = String::new();
         self.saved = false;
-        self.editor.snippet = Snippet::default();
-        self.editor.snippet.solved = true;
+        self.editor.clear();
     }
 }
 
-pub fn recipe_menu_items(planner: &SnippetEditor, recipe: &Recipe) -> Vec<String> {
+pub fn recipe_menu_items(info: &Info, recipe: &Recipe) -> Vec<String> {
     // let recipe_text = if recipe.products.len() != 1 || recipe.products[0].name != recipe.name {
     //     format!(
     //         "{} ({} ➡ {})",
@@ -406,13 +387,12 @@ pub fn recipe_menu_items(planner: &SnippetEditor, recipe: &Recipe) -> Vec<String
     //     recipe.name.clone()
     // };
 
-    let crafters = planner
-        .info
+    let crafters = info
         .category_to_crafter
         .get(&recipe.category)
         .expect("missing item in category_to_crafter");
 
-    if planner.auto_select_crafter(crafters).is_some() {
+    if info.auto_select_crafter(crafters).is_some() {
         vec![recipe.name.clone()]
     } else {
         crafters
