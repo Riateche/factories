@@ -58,113 +58,10 @@ impl MyApp {
                                     self.show_error(&r);
                                 }
                             });
-                            /*
-                            ui.horizontal(|ui| {
-                                ui.label("Replace source with craft:");
-                                let mut text = String::new();
-                                ComboBox::new(("replace_source_item", self.generation), "")
-                                    .selected_text(&text)
-                                    .show_ui(ui, |ui| {
-                                        for machine in &self.planner.snippet.machines {
-                                            if machine.crafter.name == "source" {
-                                                let item = &machine.recipe.products[0].name;
-                                                for recipe in
-                                                    self.planner.game_data.recipes.values()
-                                                {
-                                                    if !(recipe.category != "recycling"
-                                                        && recipe.category
-                                                            != "recycling-or-hand-crafting"
-                                                        && recipe
-                                                            .products
-                                                            .iter()
-                                                            .any(|p| &p.name == item))
-                                                    {
-                                                        continue;
-                                                    }
-                                                    let more_outputs = if recipe.products.len() > 1
-                                                    {
-                                                        " + ..."
-                                                    } else {
-                                                        ""
-                                                    };
-                                                    for menu_item in
-                                                        recipe_menu_items(&self.planner, recipe)
-                                                    {
-                                                        ui.selectable_value(
-                                                            &mut text,
-                                                            menu_item.clone(),
-                                                            if &recipe.name == item {
-                                                                item.to_string()
-                                                            } else {
-                                                                format!(
-                                                                    "{} (➡ {}{})",
-                                                                    menu_item, item, more_outputs
-                                                                )
-                                                            },
-                                                        );
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    });
-                                if !text.is_empty() {
-                                    let r = self.add_recipe(&text);
-                                    self.show_error(&r);
-                                }
-                            });
-                            ui.horizontal(|ui| {
-                                ui.label("Replace sink with craft:");
-                                let mut text = String::new();
-                                ComboBox::new(("replace_sink_item", self.generation), "")
-                                    .selected_text(&text)
-                                    .show_ui(ui, |ui| {
-                                        for machine in &self.planner.snippet.machines {
-                                            if machine.crafter.name == "sink" {
-                                                let item = &machine.recipe.ingredients[0].name;
-                                                for recipe in
-                                                    self.planner.game_data.recipes.values()
-                                                {
-                                                    if !(recipe.category != "recycling"
-                                                        && recipe.category
-                                                            != "recycling-or-hand-crafting"
-                                                        && recipe
-                                                            .ingredients
-                                                            .iter()
-                                                            .any(|p| &p.name == item))
-                                                    {
-                                                        continue;
-                                                    }
-                                                    let more_inputs =
-                                                        if recipe.ingredients.len() > 1 {
-                                                            " + ..."
-                                                        } else {
-                                                            ""
-                                                        };
-                                                    for menu_item in
-                                                        recipe_menu_items(&self.planner, recipe)
-                                                    {
-                                                        ui.selectable_value(
-                                                            &mut text,
-                                                            menu_item.clone(),
-                                                            format!(
-                                                                "({}{}) ➡ {}",
-                                                                item, more_inputs, menu_item,
-                                                            ),
-                                                        );
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    });
-                                if !text.is_empty() {
-                                    let r = self.add_recipe(&text);
-                                    self.show_error(&r);
-                                }
-                            });*/
                         });
                         ui.horizontal(|ui| {
                             ui.heading("");
-                            ui.label(if self.planner.snippet.solved {
+                            ui.label(if self.editor.snippet.solved {
                                 "✔ Solved"
                             } else {
                                 "🗙 Unsolved"
@@ -258,12 +155,12 @@ impl MyApp {
                 ui.heading("Machines");
                 let show_names = ui.input(|i| i.modifiers.alt);
                 egui::Frame::group(ui.style()).show(ui, |ui| {
-                    if self.planner.snippet.machines.is_empty() {
+                    if self.editor.snippet.machines.is_empty() {
                         ui.label("No machines.");
                     }
                     let mut index_to_remove = None;
                     let mut recipe_to_add = None;
-                    for (i, machine) in self.planner.snippet.machines.iter().enumerate() {
+                    for (i, machine) in self.editor.snippet.machines.iter().enumerate() {
                         ui.horizontal(|ui| {
                             let item_speeds = machine.item_speeds().collect_vec();
                             let mut is_first = true;
@@ -381,12 +278,7 @@ impl MyApp {
                                             &machine.recipe.ingredients[0].name
                                         };
                                         let mut menu_items_and_hints = Vec::new();
-                                        for recipe in self.planner.game_data.recipes.values() {
-                                            if recipe.category == "recycling"
-                                                || recipe.category == "recycling-or-hand-crafting"
-                                            {
-                                                continue;
-                                            }
+                                        for recipe in self.editor.info.game_data.recipes.values() {
                                             let can_replace = if machine.crafter.name == "source" {
                                                 recipe.products.iter().any(|p| &p.name == item)
                                             } else {
@@ -420,8 +312,7 @@ impl MyApp {
                                                     )
                                                 }
                                             };
-                                            for menu_item in
-                                                recipe_menu_items(&self.planner, recipe)
+                                            for menu_item in recipe_menu_items(&self.editor, recipe)
                                             {
                                                 menu_items_and_hints
                                                     .push((menu_item, hint.clone()));
@@ -510,8 +401,8 @@ impl MyApp {
                     }
                     if let Some(i) = index_to_remove {
                         self.saved = false;
-                        self.planner.snippet.solved = false;
-                        self.planner.snippet.machines.remove(i);
+                        self.editor.snippet.solved = false;
+                        self.editor.snippet.machines.remove(i);
                         self.after_machines_changed();
                     }
                     if let Some(name) = recipe_to_add {
@@ -521,17 +412,14 @@ impl MyApp {
                 });
 
                 if let Some(i) = self.edit_machine_index {
-                    if i < self.planner.snippet.machines.len() {
+                    if i < self.editor.snippet.machines.len() {
                         ui.horizontal(|ui| {
                             ui.heading(format!(
                                 "Edit machine: {}(",
-                                self.planner.snippet.machines[i].crafter.name,
+                                self.editor.snippet.machines[i].crafter.name,
                             ));
-                            ui.image(icon_url(&self.planner.snippet.machines[i].recipe.name));
-                            ui.heading(format!(
-                                "{})",
-                                self.planner.snippet.machines[i].recipe.name
-                            ));
+                            ui.image(icon_url(&self.editor.snippet.machines[i].recipe.name));
+                            ui.heading(format!("{})", self.editor.snippet.machines[i].recipe.name));
                         });
 
                         egui::Frame::group(ui.style()).show(ui, |ui| {
@@ -554,29 +442,29 @@ impl MyApp {
                                     self.show_error(&r.as_ref().map(|_| ()));
                                     if let Ok(count) = r {
                                         self.saved = false;
-                                        self.planner.snippet.solved = false;
-                                        self.planner.snippet.machines[i].count_constraint =
+                                        self.editor.snippet.solved = false;
+                                        self.editor.snippet.machines[i].count_constraint =
                                             Some(count);
                                         self.after_constraint_changed();
                                     }
                                 }
                             });
-                            if self.planner.snippet.machines[i]
+                            if self.editor.snippet.machines[i]
                                 .crafter
                                 .module_inventory_size
                                 > 0
                             {
-                                let num_empty_module_slots = self.planner.snippet.machines[i]
+                                let num_empty_module_slots = self.editor.snippet.machines[i]
                                     .crafter
                                     .module_inventory_size
                                     .saturating_sub(
-                                        self.planner.snippet.machines[i].modules.len() as u64
+                                        self.editor.snippet.machines[i].modules.len() as u64
                                     );
                                 ui.horizontal(|ui| {
                                     ui.label("Modules:");
                                     let mut index_to_remove = None;
                                     for (ii, module) in
-                                        self.planner.snippet.machines[i].modules.iter().enumerate()
+                                        self.editor.snippet.machines[i].modules.iter().enumerate()
                                     {
                                         if ui
                                             .image(icon_url(&module.name))
@@ -598,12 +486,12 @@ impl MyApp {
                                             );
                                         }
                                     }
-                                    if !self.planner.snippet.machines[i].modules.is_empty() {
+                                    if !self.editor.snippet.machines[i].modules.is_empty() {
                                         ui.label("(Click on module to remove it)");
                                     }
 
                                     if let Some(ii) = index_to_remove {
-                                        self.planner.snippet.machines[i].modules.remove(ii);
+                                        self.editor.snippet.machines[i].modules.remove(ii);
                                         self.after_machines_changed();
                                     }
                                 });
@@ -613,7 +501,7 @@ impl MyApp {
                                         ui.label("Add module:");
                                         let mut added = false;
                                         let mut allowed_modules = vec![&self.default_speed_module];
-                                        if self.planner.snippet.machines[i]
+                                        if self.editor.snippet.machines[i]
                                             .recipe
                                             .allowed_effects
                                             .productivity
@@ -632,7 +520,7 @@ impl MyApp {
                                                     1
                                                 };
                                                 for _ in 0..num_added {
-                                                    self.planner.snippet.machines[i]
+                                                    self.editor.snippet.machines[i]
                                                         .modules
                                                         .push(module.clone());
                                                     added = true;
@@ -658,7 +546,7 @@ impl MyApp {
                                     {
                                         match self.num_beacons.parse::<u32>() {
                                             Ok(num_beacons) => {
-                                                self.planner.snippet.machines[i].beacons = (0
+                                                self.editor.snippet.machines[i].beacons = (0
                                                     ..num_beacons)
                                                     .map(|_| {
                                                         (0..2)
@@ -689,7 +577,7 @@ impl MyApp {
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     let mut constraint_to_delete = None;
                     let mut any_constraints = false;
-                    for (item, speed) in &self.planner.snippet.item_speed_constraints {
+                    for (item, speed) in &self.editor.snippet.item_speed_constraints {
                         ui.horizontal(|ui| {
                             ui.label(format!("• {}: {}/s", item, speed));
                             if ui.button("Edit").clicked() {
@@ -706,12 +594,12 @@ impl MyApp {
                     }
                     if let Some(item) = constraint_to_delete {
                         self.saved = false;
-                        self.planner.snippet.solved = false;
-                        self.planner.snippet.item_speed_constraints.remove(&item);
+                        self.editor.snippet.solved = false;
+                        self.editor.snippet.item_speed_constraints.remove(&item);
                         self.after_constraint_changed();
                     }
                     let mut constraint_to_delete2 = None;
-                    for (i, machine) in self.planner.snippet.machines.iter().enumerate() {
+                    for (i, machine) in self.editor.snippet.machines.iter().enumerate() {
                         if let Some(count) = machine.count_constraint {
                             ui.horizontal(|ui| {
                                 ui.label(format!(
@@ -733,8 +621,8 @@ impl MyApp {
                     }
                     if let Some(index) = constraint_to_delete2 {
                         self.saved = false;
-                        self.planner.snippet.solved = false;
-                        self.planner.snippet.machines[index].count_constraint = None;
+                        self.editor.snippet.solved = false;
+                        self.editor.snippet.machines[index].count_constraint = None;
                         self.after_constraint_changed();
                     }
                     if any_constraints {
@@ -746,7 +634,7 @@ impl MyApp {
                         ComboBox::new(("constraint_item", self.generation), "")
                             .selected_text(&self.item_speed_contraint_item)
                             .show_ui(ui, |ui| {
-                                for item in self.planner.added_items() {
+                                for item in self.editor.added_items() {
                                     ui.selectable_value(
                                         &mut self.item_speed_contraint_item,
                                         item.clone(),
@@ -774,13 +662,13 @@ impl MyApp {
                                 && ui.input(|i| i.key_pressed(Key::Enter)))
                         {
                             self.saved = false;
-                            self.planner.snippet.solved = false;
+                            self.editor.snippet.solved = false;
                             let r = self
                                 .item_speed_contraint_speed
                                 .parse()
                                 .map_err(anyhow::Error::from)
                                 .and_then(|speed| {
-                                    self.planner.add_item_speed_constraint(
+                                    self.editor.add_item_speed_constraint(
                                         &self.item_speed_contraint_item,
                                         speed,
                                     )

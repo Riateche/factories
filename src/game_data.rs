@@ -67,7 +67,7 @@ pub struct Ingredient {
     pub amount: f64,
 }
 
-// Skipped "fluidbox_index", "ignored_by_productivity", "ignored_by_stats", "percent_spoiled" properties
+// Skipped "fluidbox_index", "ignored_by_stats", "percent_spoiled" properties
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Product {
     pub amount: f64,
@@ -116,13 +116,4 @@ pub struct MineableProperties {
 pub struct GameData {
     pub recipes: BTreeMap<String, Recipe>,
     pub entities: BTreeMap<String, Entity>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Crafter {
-    pub name: String,
-    pub energy_usage: f64,
-    pub crafting_speed: f64,
-    #[serde(default)] // only for compatibility
-    pub module_inventory_size: u64,
 }

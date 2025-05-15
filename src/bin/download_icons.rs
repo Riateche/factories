@@ -1,10 +1,9 @@
-use {
-    factories::init,
-    std::{collections::HashMap, path::Path},
-};
+use std::{collections::HashMap, path::Path};
+
+use factories::info::Info;
 
 fn main() -> anyhow::Result<()> {
-    let planner = init()?;
+    let info = Info::load()?;
     let client = reqwest::blocking::Client::new();
     let blacklist = [
         "turbo-loader",
@@ -73,16 +72,8 @@ fn main() -> anyhow::Result<()> {
     ]
     .into_iter()
     .collect();
-    for recipe in planner
-        .game_data
-        .recipes
-        .keys()
-        .chain(planner.all_items.iter())
-    {
-        if recipe.ends_with("-recycling")
-            || recipe.starts_with("parameter-")
-            || blacklist.contains(&recipe.as_str())
-        {
+    for recipe in info.game_data.recipes.keys().chain(info.all_items.iter()) {
+        if blacklist.contains(&recipe.as_str()) {
             continue;
         }
         let file_path = format!("icons/{recipe}.png");

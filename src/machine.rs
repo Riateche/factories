@@ -1,11 +1,25 @@
 use {
-    crate::{
-        game_data::{Crafter, Recipe},
-        rf, Module,
-    },
+    crate::{game_data::Recipe, rf},
     itertools::Itertools,
     serde::{Deserialize, Serialize},
 };
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Crafter {
+    pub name: String,
+    pub energy_usage: f64,
+    pub crafting_speed: f64,
+    #[serde(default)] // only for compatibility
+    pub module_inventory_size: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Module {
+    pub name: String,
+    pub energy_delta_percent: f64,
+    pub speed_delta_percent: f64,
+    pub productivity_delta_percent: f64,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Machine {
