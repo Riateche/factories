@@ -7,7 +7,11 @@ use {
     eframe::egui::{self, Color32, ComboBox, Key, Sense},
     egui::{Response, ScrollArea, TextEdit, Ui, Widget},
     itertools::Itertools,
-    std::{env, path::Path, time::Duration},
+    std::{
+        env,
+        path::Path,
+        time::{Duration, Instant},
+    },
     tracing::warn,
     url::Url,
 };
@@ -22,6 +26,10 @@ fn icon_url(name: &str) -> String {
 impl MyApp {
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let mut focus_speed_constraint_input = false;
+
+        while let Ok(msg) = self.msg_receiver.try_recv() {
+            self.alerts.push_back((msg, Instant::now()));
+        }
 
         ScrollArea::vertical()
             .show(ui, |ui| {

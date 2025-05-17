@@ -8,12 +8,15 @@ use {
         collections::{BTreeSet, VecDeque},
         ffi::OsStr,
         fmt::{Display, Write},
+        sync::mpsc::Receiver,
         time::Instant,
     },
     url::Url,
 };
 
 pub struct MyApp {
+    pub msg_receiver: Receiver<String>,
+
     // Static data
     pub all_recipe_menu_items: Vec<String>,
     pub belt_speeds: Vec<(f64, String)>,
@@ -62,7 +65,7 @@ pub fn name_or_untitled(name: &str) -> &str {
 }
 
 impl MyApp {
-    pub fn new() -> anyhow::Result<Self> {
+    pub fn new(ui_msg_receiver: Receiver<String>) -> anyhow::Result<Self> {
         let editor = SnippetEditor::init()?;
         fs_err::create_dir_all("snippets")?;
         let mut snippet_names = BTreeSet::new();
@@ -112,6 +115,7 @@ impl MyApp {
             editor.info().modules.get(prod_module_name).unwrap().clone();
 
         let mut app = MyApp {
+            msg_receiver: ui_msg_receiver,
             editor,
             recipe_search_text: String::new(),
             auto_focus: true,

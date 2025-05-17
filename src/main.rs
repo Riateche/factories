@@ -6,38 +6,15 @@ use {
         egui::{style::ScrollStyle, vec2, TextStyle, ViewportBuilder},
         icon_data,
     },
-    factories::ui::app::MyApp,
-    itertools::Itertools,
-    tracing::{
-        field::{Field, Visit},
-        level_filters::LevelFilter,
-        span, Subscriber,
-    },
-    tracing_log::LogTracer,
-    tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer},
+    factories::ui::{app::MyApp, tracing_layer::UiLayer},
+    std::sync::mpsc,
+    tracing::level_filters::LevelFilter,
+    tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter},
 };
-
-struct MyLayer;
-
-impl<S: Subscriber> Layer<S> for MyLayer {
-    fn on_event(
-        &self,
-        event: &tracing::Event<'_>,
-        _ctx: tracing_subscriber::layer::Context<'_, S>,
-    ) {
-        pub struct MyVisitor;
-        impl Visit for MyVisitor {
-            fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
-                //eprintln!("\nfield {:?} {:?}\n", field.name(), value);
-            }
-        }
-        //eprintln!("\non_event! {event:?}\n");
-        event.record(&mut MyVisitor);
-    }
-}
 
 fn main() -> anyhow::Result<()> {
     //LogTracer::init()?;
+    let (ui_msg_sender, ui_msg_receiver) = mpsc::channel();
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::builder()
@@ -46,7 +23,7 @@ fn main() -> anyhow::Result<()> {
                 .expect("invalid RUST_LOG env var"),
         )
         .finish()
-        .with(MyLayer)
+        .with(UiLayer::new(ui_msg_sender))
         .try_init()?;
 
     // icon source: https://www.iconfinder.com/icons/3688428/
@@ -57,7 +34,7 @@ fn main() -> anyhow::Result<()> {
         ..Default::default()
     };
 
-    let app = MyApp::new()?;
+    let app = MyApp::new(ui_msg_receiver)?;
     eframe::run_native(
         "Factories",
         options,
