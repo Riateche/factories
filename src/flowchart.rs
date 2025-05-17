@@ -1,14 +1,11 @@
 use {
-    crate::{
-        rf,
-        snippet::{SnippetEditor, SnippetMachine},
-    },
+    crate::{editor::Editor, rf, snippet::SnippetMachine},
     itertools::Itertools,
     ordered_float::OrderedFloat,
     std::{cmp::min, collections::VecDeque, fmt::Write},
 };
 
-pub fn generate(editor: &SnippetEditor, title: &str) -> String {
+pub fn generate(editor: &Editor, title: &str) -> String {
     let mut out = String::new();
     if !title.is_empty() {
         writeln!(

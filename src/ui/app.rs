@@ -1,5 +1,5 @@
 use {
-    crate::{flowchart, game_data::Recipe, info::Info, machine::Module, snippet::SnippetEditor},
+    crate::{editor::Editor, flowchart, game_data::Recipe, info::Info, machine::Module},
     anyhow::{format_err, Context},
     arboard::Clipboard,
     itertools::Itertools,
@@ -24,7 +24,7 @@ pub struct MyApp {
     pub default_productivity_module: Module,
 
     // Global
-    pub editor: SnippetEditor,
+    pub editor: Editor,
     pub snippet_names: BTreeSet<String>,
     pub generation: u64, // used to generate new ids for tooltips when things change to force correct size
     pub alerts: VecDeque<(String, Instant)>,
@@ -66,7 +66,7 @@ pub fn name_or_untitled(name: &str) -> &str {
 
 impl MyApp {
     pub fn new(ui_msg_receiver: Receiver<String>) -> anyhow::Result<Self> {
-        let editor = SnippetEditor::init()?;
+        let editor = Editor::init()?;
         fs_err::create_dir_all("snippets")?;
         let mut snippet_names = BTreeSet::new();
         for item in fs_err::read_dir("snippets")? {

@@ -1,5 +1,6 @@
 mod analyze;
 mod config;
+mod editor;
 mod flowchart;
 mod game_data;
 mod info;

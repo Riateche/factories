@@ -398,13 +398,12 @@ impl MyApp {
                                 if r.clicked() {
                                     self.edit_machine_index = Some(i);
                                     self.machine_count_constraint = match &editor_machine.snippet {
-                                        crate::snippet::SnippetMachine::Source { .. }
-                                        | crate::snippet::SnippetMachine::Sink { .. } => {
+                                        SnippetMachine::Source { .. }
+                                        | SnippetMachine::Sink { .. } => {
                                             unreachable!()
                                         }
-                                        crate::snippet::SnippetMachine::Crafter {
-                                            count_constraint,
-                                            ..
+                                        SnippetMachine::Crafter {
+                                            count_constraint, ..
                                         } => count_constraint
                                             .map(|c| c.to_string())
                                             .unwrap_or_default(),
