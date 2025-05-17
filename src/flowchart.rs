@@ -3,6 +3,7 @@ use {
     itertools::Itertools,
     ordered_float::OrderedFloat,
     std::{cmp::min, collections::VecDeque, fmt::Write},
+    tracing::warn,
 };
 
 pub fn generate(editor: &Editor, title: &str) -> String {
@@ -95,8 +96,8 @@ pub fn generate(editor: &Editor, title: &str) -> String {
             loop {
                 let Some((destination_machine, destination_speed)) = destinations.front_mut()
                 else {
-                    println!(
-                        "WARN: unable to allocate remaining {}/s {} to destinations",
+                    warn!(
+                        "unable to allocate remaining {}/s {} to destinations",
                         remaining_speed, item
                     );
                     break 'outer;
@@ -130,8 +131,8 @@ pub fn generate(editor: &Editor, title: &str) -> String {
                 .front()
                 .is_some_and(|(_, speed)| *speed > epsilon)
         {
-            println!(
-                "WARN: not all destinations of {} are satisfied: {:?}",
+            warn!(
+                "not all destinations of {} are satisfied: {:?}",
                 item, destinations
             );
         }

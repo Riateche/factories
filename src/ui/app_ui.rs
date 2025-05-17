@@ -1,6 +1,6 @@
 use {
     super::{
-        app::{name_or_untitled, recipe_menu_items, MyApp},
+        app::{recipe_menu_items, MyApp},
         drop_down::DropDownBox,
     },
     crate::{rf, snippet::SnippetMachine, ResultExtOrWarn},
@@ -9,10 +9,8 @@ use {
     itertools::Itertools,
     std::{
         env,
-        path::Path,
         time::{Duration, Instant},
     },
-    tracing::warn,
     url::Url,
 };
 
@@ -29,6 +27,9 @@ impl MyApp {
 
         while let Ok(msg) = self.msg_receiver.try_recv() {
             self.alerts.push_back((msg, Instant::now()));
+            if self.alerts.len() > 5 {
+                self.alerts.pop_front();
+            }
         }
 
         ScrollArea::vertical()
@@ -63,8 +64,7 @@ impl MyApp {
                                 }
 
                                 if drop_down_response.committed {
-                                    let r = self.add_recipe(&self.recipe_search_text.clone());
-                                    self.show_error(&r);
+                                    self.add_recipe(&self.recipe_search_text.clone()).or_warn();
                                 }
                             });
                         });
@@ -93,8 +93,7 @@ impl MyApp {
                                 }
                                 if response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter))
                                 {
-                                    let r = self.save_snippet();
-                                    self.show_error(&r);
+                                    self.save_snippet().or_warn();
                                 }
                             });
 
@@ -109,15 +108,13 @@ impl MyApp {
                                         }
                                     });
                                 if !text.is_empty() {
-                                    let r = self.load_snippet(&text);
-                                    self.show_error(&r);
+                                    self.load_snippet(&text).or_warn();
                                 }
                             });
 
                             ui.horizontal(|ui| {
                                 if ui.button("📥 Save").clicked() {
-                                    let r = self.save_snippet();
-                                    self.show_error(&r);
+                                    self.save_snippet().or_warn();
                                 }
 
                                 if ui.button("🗋 New").clicked() {
@@ -135,22 +132,7 @@ impl MyApp {
                                     ui.label(format!("Confirm deletion of snippet {name:?}?"));
                                     if ui.button("Yes").clicked() {
                                         self.confirm_delete = None;
-                                        let snippet_path =
-                                            format!("snippets/{}.json", name_or_untitled(&name));
-                                        let mermaid_path =
-                                            format!("mermaid/{}.html", name_or_untitled(&name));
-                                        let r = fs_err::remove_file(snippet_path).and_then(|()| {
-                                            if Path::new(&mermaid_path).exists() {
-                                                fs_err::remove_file(mermaid_path)
-                                            } else {
-                                                Ok(())
-                                            }
-                                        });
-                                        self.show_error(&r);
-                                        if r.is_ok() {
-                                            self.snippet_names.remove(&name);
-                                            self.new_snippet();
-                                        }
+                                        self.delete_snippet(&name).or_warn();
                                     }
                                     if ui.button("No").clicked() {
                                         self.confirm_delete = None;
@@ -421,13 +403,11 @@ impl MyApp {
                     if let Some(i) = index_to_remove {
                         self.saved = false;
                         self.alerts.clear();
-                        let r = self.editor.remove_machine(i);
-                        self.show_error(&r);
+                        self.editor.remove_machine(i).or_warn();
                         self.after_machines_changed();
                     }
                     if let Some(name) = recipe_to_add {
-                        let r = self.add_recipe(&name);
-                        self.show_error(&r);
+                        self.add_recipe(&name).or_warn();
                     }
                 });
 
@@ -461,15 +441,13 @@ impl MyApp {
                                     || (text_response.lost_focus()
                                         && ui.input(|i| i.key_pressed(Key::Enter)))
                                 {
-                                    let r = self.machine_count_constraint.parse();
-                                    self.show_error(&r.as_ref().map(|_| ()));
-                                    if let Ok(count) = r {
+                                    let count = self.machine_count_constraint.parse().or_warn();
+                                    if let Some(count) = count {
                                         self.saved = false;
                                         self.alerts.clear();
-                                        let r = self
-                                            .editor
-                                            .set_machine_count_constraint(i, Some(count));
-                                        self.show_error(&r);
+                                        self.editor
+                                            .set_machine_count_constraint(i, Some(count))
+                                            .or_warn();
                                         self.after_constraint_changed();
                                     }
                                 }
@@ -520,9 +498,10 @@ impl MyApp {
                                     if let Some(ii) = index_to_remove {
                                         self.saved = false;
                                         self.alerts.clear();
-                                        let r = self.editor.remove_module(i, ii);
-                                        self.show_error(&r);
-                                        self.after_machines_changed();
+                                        let r = self.editor.remove_module(i, ii).or_warn();
+                                        if r.is_some() {
+                                            self.after_machines_changed();
+                                        }
                                     }
                                 });
 
@@ -553,12 +532,9 @@ impl MyApp {
                                                 for _ in 0..num_added {
                                                     self.saved = false;
                                                     self.alerts.clear();
-                                                    if let Err(err) =
-                                                        self.editor.add_module(i, &module.name)
-                                                    {
-                                                        warn!("error: {err}");
-                                                    }
-                                                    //self.show_error(&r);
+                                                    self.editor
+                                                        .add_module(i, &module.name)
+                                                        .or_warn();
                                                     added = true;
                                                 }
                                             }
@@ -580,11 +556,13 @@ impl MyApp {
                                         || (text_response.lost_focus()
                                             && ui.input(|i| i.key_pressed(Key::Enter)))
                                     {
-                                        match self.num_beacons.parse::<u32>() {
-                                            Ok(num_beacons) => {
-                                                self.saved = false;
-                                                self.alerts.clear();
-                                                let r = self.editor.set_beacons(
+                                        if let Some(num_beacons) =
+                                            self.num_beacons.parse::<u32>().or_warn()
+                                        {
+                                            self.saved = false;
+                                            self.alerts.clear();
+                                            self.editor
+                                                .set_beacons(
                                                     i,
                                                     (0..num_beacons)
                                                         .map(|_| {
@@ -596,13 +574,9 @@ impl MyApp {
                                                                 .collect_vec()
                                                         })
                                                         .collect(),
-                                                );
-                                                self.show_error(&r);
-                                                self.after_machines_changed();
-                                            }
-                                            Err(err) => {
-                                                self.show_error(&Err(err));
-                                            }
+                                                )
+                                                .or_warn();
+                                            self.after_machines_changed();
                                         }
                                     }
                                 });
@@ -637,8 +611,7 @@ impl MyApp {
                     if let Some(item) = constraint_to_delete {
                         self.saved = false;
                         self.alerts.clear();
-                        let r = self.editor.set_item_speed_constraint(&item, None);
-                        self.show_error(&r);
+                        self.editor.set_item_speed_constraint(&item, None).or_warn();
                         self.after_constraint_changed();
                     }
                     let mut constraint_to_delete2 = None;
@@ -671,8 +644,9 @@ impl MyApp {
                     if let Some(index) = constraint_to_delete2 {
                         self.saved = false;
                         self.alerts.clear();
-                        let r = self.editor.set_machine_count_constraint(index, None);
-                        self.show_error(&r);
+                        self.editor
+                            .set_machine_count_constraint(index, None)
+                            .or_warn();
                         self.after_constraint_changed();
                     }
                     if any_constraints {
@@ -712,19 +686,16 @@ impl MyApp {
                                 && ui.input(|i| i.key_pressed(Key::Enter)))
                         {
                             self.saved = false;
-                            let r = self
-                                .item_speed_contraint_speed
-                                .parse()
-                                .map_err(anyhow::Error::from)
-                                .and_then(|speed| {
-                                    self.alerts.clear();
-                                    self.editor.set_item_speed_constraint(
+                            if let Some(speed) = self.item_speed_contraint_speed.parse().or_warn() {
+                                self.alerts.clear();
+                                self.editor
+                                    .set_item_speed_constraint(
                                         &self.item_speed_contraint_item,
                                         Some(speed),
                                     )
-                                });
-                            self.show_error(&r);
-                            self.after_constraint_changed();
+                                    .or_warn();
+                                self.after_constraint_changed();
+                            }
                         }
                     });
 
@@ -740,8 +711,7 @@ impl MyApp {
                 ui.add_space(10.0);
                 ui.horizontal(|ui| {
                     if ui.button("Open chart").clicked() {
-                        let r = self.open_chart();
-                        self.show_error(&r);
+                        self.open_chart().or_warn();
                     }
                     if ui.button("Solve again").clicked() {
                         self.alerts.clear();

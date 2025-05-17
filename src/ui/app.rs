@@ -1,5 +1,7 @@
 use {
-    crate::{editor::Editor, flowchart, game_data::Recipe, info::Info, machine::Module},
+    crate::{
+        editor::Editor, flowchart, game_data::Recipe, info::Info, machine::Module, ResultExtOrWarn,
+    },
     anyhow::{format_err, Context},
     arboard::Clipboard,
     itertools::Itertools,
@@ -7,7 +9,7 @@ use {
     std::{
         collections::{BTreeSet, VecDeque},
         ffi::OsStr,
-        fmt::Display,
+        path::Path,
         sync::mpsc::Receiver,
         time::Instant,
     },
@@ -212,25 +214,14 @@ impl MyApp {
         Ok(())
     }
 
-    pub fn show_error<E: Display>(&mut self, result: &Result<(), E>) {
-        if let Err(err) = result {
-            self.alerts.push_back((err.to_string(), Instant::now()));
-            if self.alerts.len() > 5 {
-                self.alerts.pop_front();
-            }
-        }
-    }
-
     pub fn after_machines_changed(&mut self) {
         self.generation += 1;
-        let r = self.save_snippet();
-        self.show_error(&r);
+        self.save_snippet().or_warn();
     }
 
     pub fn after_constraint_changed(&mut self) {
         self.generation += 1;
-        let r = self.save_snippet();
-        self.show_error(&r);
+        self.save_snippet().or_warn();
     }
 
     pub fn new_snippet(&mut self) {
@@ -239,6 +230,18 @@ impl MyApp {
         self.snippet_name = String::new();
         self.saved = false;
         self.editor.clear();
+    }
+
+    pub fn delete_snippet(&mut self, name: &str) -> anyhow::Result<()> {
+        let snippet_path = format!("snippets/{}.json", name_or_untitled(name));
+        let mermaid_path = format!("mermaid/{}.html", name_or_untitled(name));
+        fs_err::remove_file(snippet_path)?;
+        if Path::new(&mermaid_path).try_exists()? {
+            fs_err::remove_file(mermaid_path)?;
+        }
+        self.snippet_names.remove(name);
+        self.new_snippet();
+        Ok(())
     }
 
     pub fn copy_description(&self) -> anyhow::Result<()> {

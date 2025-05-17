@@ -10,7 +10,7 @@ use {
         env,
         path::Path,
     },
-    tracing::trace,
+    tracing::{info, trace},
 };
 
 #[derive(Debug)]
@@ -31,7 +31,7 @@ impl Info {
                 .exists()
             {
                 match env::set_current_dir(env!("CARGO_MANIFEST_DIR")) {
-                    Ok(()) => println!("changed current dir to {}", env!("CARGO_MANIFEST_DIR")),
+                    Ok(()) => info!("changed current dir to {}", env!("CARGO_MANIFEST_DIR")),
                     Err(err) => bail!(
                         "failed to change current dir to {}: {}",
                         env!("CARGO_MANIFEST_DIR"),

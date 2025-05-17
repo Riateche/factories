@@ -23,7 +23,6 @@ impl<S: Subscriber> Layer<S> for UiLayer {
         event: &tracing::Event<'_>,
         _ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        //eprintln!("\non_event! {event:?}\n");
         event.record(&mut UiLayerVisitor {
             layer: self,
             level: event.metadata().level(),
