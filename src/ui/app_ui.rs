@@ -152,7 +152,7 @@ impl MyApp {
                     let mut index_to_remove = None;
                     let mut recipe_to_add = None;
                     for (i, editor_machine) in self.editor.machines().iter().enumerate() {
-                        let machine = &editor_machine.machine;
+                        let machine = editor_machine.machine();
                         ui.horizontal(|ui| {
                             let item_speeds = machine.item_speeds().collect_vec();
                             let mut is_first = true;
@@ -180,9 +180,7 @@ impl MyApp {
                                     is_first = false;
                                 }
                             }
-                            let crafter_count = if machine.crafter.name == "source"
-                                || machine.crafter.name == "sink"
-                            {
+                            let crafter_count = if machine.crafter.is_source_or_sink() {
                                 String::new()
                             } else {
                                 format!("{} ×", rf(machine.crafter_count))
@@ -196,8 +194,7 @@ impl MyApp {
                             if r.contains_pointer() {
                                 let tooltip = if (machine.recipe.products.len() == 1
                                     && machine.recipe.name == machine.recipe.products[0].name)
-                                    || machine.crafter.name == "source"
-                                    || machine.crafter.name == "sink"
+                                    || machine.crafter.is_source_or_sink()
                                 {
                                     machine.crafter.name.clone()
                                 } else {
@@ -264,7 +261,7 @@ impl MyApp {
                                     if self.replace_with_craft_index == Some(i) {
                                         self.replace_with_craft_index = None;
                                     } else {
-                                        let item = if machine.crafter.name == "source" {
+                                        let item = if machine.crafter.is_source() {
                                             &machine.recipe.products[0].name
                                         } else {
                                             &machine.recipe.ingredients[0].name
@@ -272,7 +269,7 @@ impl MyApp {
                                         let mut menu_items_and_hints = Vec::new();
                                         for recipe in self.editor.info().game_data.recipes.values()
                                         {
-                                            let can_replace = if machine.crafter.name == "source" {
+                                            let can_replace = if machine.crafter.is_source() {
                                                 recipe.products.iter().any(|p| &p.name == item)
                                             } else {
                                                 recipe.ingredients.iter().any(|p| &p.name == item)
@@ -280,7 +277,7 @@ impl MyApp {
                                             if !can_replace {
                                                 continue;
                                             }
-                                            let hint = if machine.crafter.name == "source" {
+                                            let hint = if machine.crafter.is_source() {
                                                 format!(
                                                     "({} ➡) ",
                                                     recipe
@@ -320,7 +317,7 @@ impl MyApp {
                                             .into_iter()
                                             .map(|(menu_item, hint)| {
                                                 let text = if show_hints {
-                                                    if machine.crafter.name == "source" {
+                                                    if machine.crafter.is_source() {
                                                         format!("{hint}{menu_item}")
                                                     } else {
                                                         format!("{menu_item}{hint}")
@@ -379,7 +376,7 @@ impl MyApp {
                                 }
                                 if r.clicked() {
                                     self.edit_machine_index = Some(i);
-                                    self.machine_count_constraint = match &editor_machine.snippet {
+                                    self.machine_count_constraint = match editor_machine.snippet() {
                                         SnippetMachine::Source { .. }
                                         | SnippetMachine::Sink { .. } => {
                                             unreachable!()
@@ -416,12 +413,12 @@ impl MyApp {
                         ui.horizontal(|ui| {
                             ui.heading(format!(
                                 "Edit machine: {}(",
-                                self.editor.machines()[i].machine.crafter.name,
+                                self.editor.machines()[i].machine().crafter.name,
                             ));
-                            ui.image(icon_url(&self.editor.machines()[i].machine.recipe.name));
+                            ui.image(icon_url(&self.editor.machines()[i].machine().recipe.name));
                             ui.heading(format!(
                                 "{})",
-                                self.editor.machines()[i].machine.recipe.name
+                                self.editor.machines()[i].machine().recipe.name
                             ));
                         });
 
@@ -453,23 +450,26 @@ impl MyApp {
                                 }
                             });
                             if self.editor.machines()[i]
-                                .machine
+                                .machine()
                                 .crafter
                                 .module_inventory_size
                                 > 0
                             {
                                 let num_empty_module_slots = self.editor.machines()[i]
-                                    .machine
+                                    .machine()
                                     .crafter
                                     .module_inventory_size
                                     .saturating_sub(
-                                        self.editor.machines()[i].machine.modules.len() as u64,
+                                        self.editor.machines()[i].machine().modules.len() as u64,
                                     );
                                 ui.horizontal(|ui| {
                                     ui.label("Modules:");
                                     let mut index_to_remove = None;
-                                    for (ii, module) in
-                                        self.editor.machines()[i].machine.modules.iter().enumerate()
+                                    for (ii, module) in self.editor.machines()[i]
+                                        .machine()
+                                        .modules
+                                        .iter()
+                                        .enumerate()
                                     {
                                         if ui
                                             .image(icon_url(&module.name))
@@ -491,7 +491,7 @@ impl MyApp {
                                             );
                                         }
                                     }
-                                    if !self.editor.machines()[i].machine.modules.is_empty() {
+                                    if !self.editor.machines()[i].machine().modules.is_empty() {
                                         ui.label("(Click on module to remove it)");
                                     }
 
@@ -511,7 +511,7 @@ impl MyApp {
                                         let mut added = false;
                                         let mut allowed_modules = vec![&self.default_speed_module];
                                         if self.editor.machines()[i]
-                                            .machine
+                                            .machine()
                                             .recipe
                                             .allowed_effects
                                             .productivity
@@ -619,19 +619,19 @@ impl MyApp {
                         if let SnippetMachine::Crafter {
                             count_constraint: Some(count),
                             ..
-                        } = &machine.snippet
+                        } = machine.snippet()
                         {
                             ui.horizontal(|ui| {
                                 ui.label(format!(
                                     "• {} × {}({})",
                                     count,
-                                    machine.machine.crafter.name,
-                                    machine.machine.recipe.name
+                                    machine.machine().crafter.name,
+                                    machine.machine().recipe.name
                                 ));
                                 if ui.button("Edit").clicked() {
                                     self.edit_machine_index = Some(i);
                                     self.machine_count_constraint = count.to_string();
-                                    self.num_beacons = machine.machine.beacons.len().to_string();
+                                    self.num_beacons = machine.machine().beacons.len().to_string();
                                     self.focus_machine_constraint_input = true;
                                 }
                                 if ui.button("🗙").clicked() {

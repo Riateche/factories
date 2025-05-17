@@ -1,4 +1,5 @@
 use {
+    anyhow::Context,
     serde::{Deserialize, Deserializer, Serialize},
     std::collections::BTreeMap,
 };
@@ -116,4 +117,12 @@ pub struct MineableProperties {
 pub struct GameData {
     pub recipes: BTreeMap<String, Recipe>,
     pub entities: BTreeMap<String, Entity>,
+}
+
+impl GameData {
+    pub fn recipe(&self, name: &str) -> anyhow::Result<&Recipe> {
+        self.recipes
+            .get(name)
+            .with_context(|| format!("invalid recipe name: {name:?}"))
+    }
 }

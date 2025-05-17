@@ -1,8 +1,14 @@
 use {
-    crate::{game_data::Recipe, rf},
+    crate::{
+        game_data::{Ingredient, Product, Recipe},
+        rf,
+    },
     itertools::Itertools,
     serde::{Deserialize, Serialize},
 };
+
+const SOURCE: &str = "source";
+const SINK: &str = "sink";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Crafter {
@@ -15,13 +21,13 @@ pub struct Crafter {
 
 impl Crafter {
     pub fn is_source(&self) -> bool {
-        self.name == "source"
+        self.name == SOURCE
     }
     pub fn is_sink(&self) -> bool {
-        self.name == "sink"
+        self.name == SINK
     }
     pub fn is_source_or_sink(&self) -> bool {
-        self.name == "source" || self.name == "sink"
+        self.name == SOURCE || self.name == SINK
     }
 }
 
@@ -56,6 +62,72 @@ pub struct ItemSpeed {
 }
 
 impl Machine {
+    pub fn new_source(item: &str) -> Self {
+        Machine {
+            crafter: Crafter {
+                name: SOURCE.into(),
+                energy_usage: 0.0,
+                crafting_speed: 1.0,
+                module_inventory_size: 0,
+            },
+            crafter_count: 1.0,
+            recipe: Recipe {
+                name: format!("{item}-source"),
+                enabled: true,
+                category: SOURCE.into(),
+                ingredients: Vec::new(),
+                products: vec![Product {
+                    amount: 1.0,
+                    name: item.into(),
+                    type_: String::new(),
+                    extra_count_fraction: 0.0,
+                    probability: 1.0,
+                    temperature: None,
+                    ignored_by_productivity: 0.,
+                }],
+                hidden: false,
+                hidden_from_flow_stats: false,
+                energy: 1.0,
+                order: String::new(),
+                productivity_bonus: 0.0,
+                allowed_effects: Default::default(),
+            },
+            modules: Vec::new(),
+            beacons: Vec::new(),
+        }
+    }
+
+    pub fn new_sink(item: &str) -> Self {
+        Machine {
+            crafter: Crafter {
+                name: SINK.into(),
+                energy_usage: 0.0,
+                crafting_speed: 1.0,
+                module_inventory_size: 0,
+            },
+            crafter_count: 1.0,
+            recipe: Recipe {
+                name: format!("{item}-sink"),
+                enabled: true,
+                category: SINK.into(),
+                ingredients: vec![Ingredient {
+                    amount: 1.0,
+                    name: item.into(),
+                    type_: String::new(),
+                }],
+                products: Vec::new(),
+                hidden: false,
+                hidden_from_flow_stats: false,
+                energy: 1.0,
+                order: String::new(),
+                productivity_bonus: 0.0,
+                allowed_effects: Default::default(),
+            },
+            modules: Vec::new(),
+            beacons: Vec::new(),
+        }
+    }
+
     pub fn beacon_transmission_strength(&self) -> f64 {
         if self.beacons.is_empty() {
             0.0

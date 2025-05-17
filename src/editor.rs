@@ -1,8 +1,7 @@
 use {
     crate::{
-        game_data::{Ingredient, Product, Recipe},
         info::Info,
-        machine::{Crafter, Machine, Module, ModuleType},
+        machine::{Machine, Module, ModuleType},
         rf,
         snippet::{Snippet, SnippetMachine},
     },
@@ -20,8 +19,18 @@ use {
 
 #[derive(Debug, Clone)]
 pub struct EditorMachine {
-    pub snippet: SnippetMachine,
-    pub machine: Machine,
+    snippet: SnippetMachine,
+    machine: Machine,
+}
+
+impl EditorMachine {
+    pub fn snippet(&self) -> &SnippetMachine {
+        &self.snippet
+    }
+
+    pub fn machine(&self) -> &Machine {
+        &self.machine
+    }
 }
 
 #[derive(Debug)]
@@ -33,7 +42,7 @@ pub struct Editor {
 }
 
 #[derive(Debug, Clone)]
-pub enum Constraint {
+enum Constraint {
     ItemSumsToZero { item: String },
     ItemProduction { item: String, speed: f64 },
     MachineCount { index: usize, count: f64 },
@@ -51,66 +60,8 @@ impl Editor {
 
     fn create_machine(&self, snippet: &SnippetMachine) -> anyhow::Result<Machine> {
         let output = match snippet {
-            SnippetMachine::Source { item } => Machine {
-                crafter: Crafter {
-                    name: "source".into(),
-                    energy_usage: 0.0,
-                    crafting_speed: 1.0,
-                    module_inventory_size: 0,
-                },
-                crafter_count: 1.0,
-                recipe: Recipe {
-                    name: format!("{item}-source"),
-                    enabled: true,
-                    category: "source".into(),
-                    ingredients: Vec::new(),
-                    products: vec![Product {
-                        amount: 1.0,
-                        name: item.into(),
-                        type_: String::new(),
-                        extra_count_fraction: 0.0,
-                        probability: 1.0,
-                        temperature: None,
-                        ignored_by_productivity: 0.,
-                    }],
-                    hidden: false,
-                    hidden_from_flow_stats: false,
-                    energy: 1.0,
-                    order: String::new(),
-                    productivity_bonus: 0.0,
-                    allowed_effects: Default::default(),
-                },
-                modules: Vec::new(),
-                beacons: Vec::new(),
-            },
-            SnippetMachine::Sink { item } => Machine {
-                crafter: Crafter {
-                    name: "sink".into(),
-                    energy_usage: 0.0,
-                    crafting_speed: 1.0,
-                    module_inventory_size: 0,
-                },
-                crafter_count: 1.0,
-                recipe: Recipe {
-                    name: format!("{item}-sink"),
-                    enabled: true,
-                    category: "sink".into(),
-                    ingredients: vec![Ingredient {
-                        amount: 1.0,
-                        name: item.into(),
-                        type_: String::new(),
-                    }],
-                    products: Vec::new(),
-                    hidden: false,
-                    hidden_from_flow_stats: false,
-                    energy: 1.0,
-                    order: String::new(),
-                    productivity_bonus: 0.0,
-                    allowed_effects: Default::default(),
-                },
-                modules: Vec::new(),
-                beacons: Vec::new(),
-            },
+            SnippetMachine::Source { item } => Machine::new_source(&item),
+            SnippetMachine::Sink { item } => Machine::new_sink(&item),
             SnippetMachine::Crafter {
                 crafter,
                 modules,
@@ -118,13 +69,7 @@ impl Editor {
                 recipe,
                 count_constraint: _,
             } => {
-                let recipe = self
-                    .info
-                    .game_data
-                    .recipes
-                    .get(recipe)
-                    .with_context(|| format!("recipe not found: {recipe:?}"))?
-                    .clone();
+                let recipe = self.info.game_data.recipe(recipe)?.clone();
                 let crafters = self
                     .info
                     .category_to_crafter
@@ -218,13 +163,7 @@ impl Editor {
     }
 
     pub fn add_crafter(&mut self, recipe_name: &str, crafter: Option<&str>) -> anyhow::Result<()> {
-        let recipe = self
-            .info
-            .game_data
-            .recipes
-            .get(recipe_name)
-            .with_context(|| format!("recipe not found: {recipe_name:?}"))?
-            .clone();
+        let recipe = self.info.game_data.recipe(recipe_name)?.clone();
         let crafters = self
             .info
             .category_to_crafter
@@ -299,7 +238,7 @@ impl Editor {
         let outputs = self
             .machines
             .iter()
-            .filter(|m| m.machine.crafter.name == "sink")
+            .filter(|m| m.machine.crafter.is_sink())
             .flat_map(|m| m.machine.item_speeds())
             .collect_vec();
         writeln!(
@@ -581,7 +520,7 @@ impl Editor {
 
     fn add_sources_and_sinks(&mut self) -> anyhow::Result<()> {
         self.machines
-            .retain(|m| m.machine.crafter.name != "source" && m.machine.crafter.name != "sink");
+            .retain(|m| !m.machine.crafter.is_source_or_sink());
         let items = self.added_items();
         for item in items {
             let any_inputs = self

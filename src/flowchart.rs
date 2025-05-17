@@ -20,8 +20,8 @@ pub fn generate(editor: &Editor, title: &str) -> String {
     }
     writeln!(out, "flowchart TD").unwrap();
     for (index, editor_machine) in editor.machines().iter().enumerate() {
-        let machine = &editor_machine.machine;
-        let (left_bracket, right_bracket) = match editor_machine.snippet {
+        let machine = editor_machine.machine();
+        let (left_bracket, right_bracket) = match editor_machine.snippet() {
             SnippetMachine::Source { .. } => ("[\\", "/]"),
             SnippetMachine::Sink { .. } => ("[/", "\\]"),
             SnippetMachine::Crafter { .. } => ("([", "])"),
@@ -68,7 +68,7 @@ pub fn generate(editor: &Editor, title: &str) -> String {
             .enumerate()
             .filter_map(|(machine_index, machine)| {
                 machine
-                    .machine
+                    .machine()
                     .item_speeds()
                     .into_iter()
                     .find(|item_speed| item_speed.item == item && item_speed.speed > 0.0)
@@ -82,7 +82,7 @@ pub fn generate(editor: &Editor, title: &str) -> String {
             .enumerate()
             .filter_map(|(machine_index, machine)| {
                 machine
-                    .machine
+                    .machine()
                     .item_speeds()
                     .into_iter()
                     .find(|item_speed| item_speed.item == item && item_speed.speed < 0.0)
