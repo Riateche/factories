@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::Path};
 
-use factories::info::Info;
+use factories::Info;
 
 fn main() -> anyhow::Result<()> {
     let info = Info::load()?;

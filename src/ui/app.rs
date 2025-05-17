@@ -1,13 +1,13 @@
 use {
-    crate::{game_data::Recipe, info::Info, machine::Module, rf, snippet::SnippetEditor},
+    crate::{flowchart, game_data::Recipe, info::Info, machine::Module, snippet::SnippetEditor},
     anyhow::{format_err, Context},
+    arboard::Clipboard,
     itertools::Itertools,
     ordered_float::OrderedFloat,
     std::{
-        cmp::min,
         collections::{BTreeSet, VecDeque},
         ffi::OsStr,
-        fmt::{Display, Write},
+        fmt::Display,
         sync::mpsc::Receiver,
         time::Instant,
     },
@@ -165,145 +165,8 @@ impl MyApp {
         Ok(())
     }
 
-    pub fn generate_chart(&self) -> String {
-        let mut out = String::new();
-        if !self.snippet_name.is_empty() {
-            writeln!(
-                out,
-                "--- \n\
-                title: {}\n\
-                ---",
-                &self.snippet_name
-            )
-            .unwrap();
-        }
-        writeln!(out, "flowchart TD",).unwrap();
-        for (index, machine) in self.editor.machines().iter().enumerate() {
-            let machine = &machine.machine;
-            let (left_bracket, right_bracket) = if machine.crafter.name == "source" {
-                ("[\\", "/]")
-            } else if machine.crafter.name == "sink" {
-                ("[/", "\\]")
-            } else {
-                ("([", "])")
-            };
-            writeln!(
-                out,
-                r#"    machine{}{}"{}*{}*(*{}*)"{}"#,
-                index,
-                left_bracket,
-                if machine.crafter.name == "source" || machine.crafter.name == "sink" {
-                    String::new()
-                } else {
-                    format!("{} × ", rf(machine.crafter_count))
-                },
-                machine.crafter.name,
-                if machine.crafter.name == "source" || machine.crafter.name == "sink" {
-                    machine
-                        .recipe
-                        .ingredients
-                        .get(0)
-                        .map(|i| &i.name)
-                        .unwrap_or_else(|| {
-                            machine
-                                .recipe
-                                .products
-                                .get(0)
-                                .map(|i| &i.name)
-                                .expect("invalid source or sink recipe")
-                        })
-                } else {
-                    &machine.recipe.name
-                },
-                right_bracket,
-            )
-            .unwrap();
-        }
-
-        let all_items = self.editor.added_items();
-        for item in all_items {
-            let sources = self
-                .editor
-                .machines()
-                .iter()
-                .enumerate()
-                .filter_map(|(machine_index, machine)| {
-                    machine
-                        .machine
-                        .item_speeds()
-                        .into_iter()
-                        .find(|item_speed| item_speed.item == item && item_speed.speed > 0.0)
-                        .map(|item_speed| (machine_index, item_speed.speed))
-                })
-                .collect_vec();
-
-            let mut destinations: VecDeque<_> = self
-                .editor
-                .machines()
-                .iter()
-                .enumerate()
-                .filter_map(|(machine_index, machine)| {
-                    machine
-                        .machine
-                        .item_speeds()
-                        .into_iter()
-                        .find(|item_speed| item_speed.item == item && item_speed.speed < 0.0)
-                        .map(|item_speed| (machine_index, -item_speed.speed))
-                })
-                .collect();
-
-            let epsilon = 0.001;
-            'outer: for (source_machine, source_speed) in sources {
-                let mut remaining_speed = source_speed;
-                loop {
-                    let Some((destination_machine, destination_speed)) = destinations.front_mut()
-                    else {
-                        println!(
-                            "WARN: unable to allocate remaining {}/s {} to destinations",
-                            remaining_speed, item
-                        );
-                        break 'outer;
-                    };
-                    let current_speed = min(
-                        OrderedFloat(remaining_speed),
-                        OrderedFloat(*destination_speed),
-                    )
-                    .0;
-                    writeln!(
-                        out,
-                        "    machine{}-->|{}/s *{}*|machine{}",
-                        source_machine,
-                        rf(current_speed),
-                        item,
-                        destination_machine
-                    )
-                    .unwrap();
-                    *destination_speed -= current_speed;
-                    if *destination_speed < epsilon {
-                        destinations.pop_front().unwrap();
-                    }
-                    remaining_speed -= current_speed;
-                    if remaining_speed < epsilon {
-                        break; // Move on to the next source machine.
-                    }
-                }
-            }
-            if destinations.len() > 2
-                || destinations
-                    .front()
-                    .is_some_and(|(_, speed)| *speed > epsilon)
-            {
-                println!(
-                    "WARN: not all destinations of {} are satisfied: {:?}",
-                    item, destinations
-                );
-            }
-        }
-        out
-    }
-
     pub fn save_chart(&self) -> anyhow::Result<()> {
-        let chart = self.generate_chart();
+        let chart = flowchart::generate(&self.editor, name_or_untitled(&self.snippet_name));
         let template = include_str!("../../mermaid.html");
         let html = template.replacen("$1", &chart, 1);
         fs_err::create_dir_all("mermaid")?;
@@ -376,6 +239,12 @@ impl MyApp {
         self.snippet_name = String::new();
         self.saved = false;
         self.editor.clear();
+    }
+
+    pub fn copy_description(&self) -> anyhow::Result<()> {
+        let text = self.editor.description();
+        Clipboard::new()?.set_text(&text)?;
+        Ok(())
     }
 }
 

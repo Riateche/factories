@@ -6,6 +6,7 @@ default-run = "factories"
 
 [dependencies]
 anyhow = "1.0.98"
+arboard = "3.5.0"
 eframe = "0.31.1"
 egui-dropdown = "0.13.0"
 egui_extras = { version = "0.31.1", features = ["file", "image"] }

@@ -1,5 +1,8 @@
 use {
-    crate::{rf, snippet::SnippetEditor},
+    crate::{
+        rf,
+        snippet::{SnippetEditor, SnippetMachine},
+    },
     itertools::Itertools,
     ordered_float::OrderedFloat,
     std::{cmp::min, collections::VecDeque, fmt::Write},
@@ -18,27 +21,26 @@ pub fn generate(editor: &SnippetEditor, title: &str) -> String {
         .unwrap();
     }
     writeln!(out, "flowchart TD").unwrap();
-    for (index, machine) in editor.machines().iter().enumerate() {
-        let machine = &machine.machine;
-        let (left_bracket, right_bracket) = if machine.crafter.name == "source" {
-            ("[\\", "/]")
-        } else if machine.crafter.name == "sink" {
-            ("[/", "\\]")
-        } else {
-            ("([", "])")
+    for (index, editor_machine) in editor.machines().iter().enumerate() {
+        let machine = &editor_machine.machine;
+        let (left_bracket, right_bracket) = match editor_machine.snippet {
+            SnippetMachine::Source { .. } => ("[\\", "/]"),
+            SnippetMachine::Sink { .. } => ("[/", "\\]"),
+            SnippetMachine::Crafter { .. } => ("([", "])"),
         };
+
         writeln!(
             out,
             r#"    machine{}{}"{}*{}*(*{}*)"{}"#,
             index,
             left_bracket,
-            if machine.crafter.name == "source" || machine.crafter.name == "sink" {
+            if machine.crafter.is_source_or_sink() {
                 String::new()
             } else {
                 format!("{} × ", rf(machine.crafter_count))
             },
             machine.crafter.name,
-            if machine.crafter.name == "source" || machine.crafter.name == "sink" {
+            if machine.crafter.is_source_or_sink() {
                 machine
                     .recipe
                     .ingredients

@@ -10,6 +10,7 @@ use {
     itertools::Itertools,
     nalgebra::{DMatrix, DVector},
     serde::{Deserialize, Serialize},
+    std::fmt::Write,
     std::{
         collections::{BTreeMap, BTreeSet},
         path::Path,
@@ -28,9 +29,12 @@ pub enum SnippetMachine {
     },
     Crafter {
         crafter: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
         modules: Vec<String>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
         beacons: Vec<Vec<String>>,
         recipe: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         count_constraint: Option<f64>,
     },
 }
@@ -38,6 +42,7 @@ pub enum SnippetMachine {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Snippet {
     pub machines: Vec<SnippetMachine>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub item_speed_constraints: BTreeMap<String, f64>,
 }
 
@@ -196,8 +201,13 @@ impl SnippetEditor {
         let snippet = serde_json::from_str::<Snippet>(&fs_err::read_to_string(path)?)?;
         let mut machines = Vec::new();
         for machine in snippet.machines {
-            machines.push(self.create_machine(&machine)?);
+            machines.push(EditorMachine {
+                snippet: machine.clone(),
+                machine: self.create_machine(&machine)?,
+            });
         }
+        self.machines = machines;
+        self.item_speed_constraints = snippet.item_speed_constraints;
         self.after_machines_changed();
         Ok(())
     }
@@ -289,27 +299,30 @@ impl SnippetEditor {
         Ok(())
     }
 
-    pub fn show_machines(&self) {
-        println!();
+    pub fn description(&self) -> String {
+        let mut out = String::new();
         let inputs = self
             .machines
             .iter()
-            .filter(|m| m.machine.crafter.name == "source")
+            .filter(|m| m.machine.crafter.is_source())
             .flat_map(|m| m.machine.item_speeds())
             .collect_vec();
-        println!(
-            "Inputs: {}",
+        writeln!(
+            out,
+            "Inputs: {}\n",
             inputs
                 .iter()
                 .map(|i| { format!("{}/s {}", rf(i.speed), i.item) })
                 .join(" + ")
-        );
+        )
+        .unwrap();
 
         for machine in &self.machines {
-            if machine.machine.crafter.name != "source" && machine.machine.crafter.name != "sink" {
-                println!("{}", machine.machine.io_text());
+            if !machine.machine.crafter.is_source_or_sink() {
+                writeln!(out, "{}", machine.machine.description()).unwrap();
             }
         }
+        writeln!(out).unwrap();
 
         let outputs = self
             .machines
@@ -317,14 +330,16 @@ impl SnippetEditor {
             .filter(|m| m.machine.crafter.name == "sink")
             .flat_map(|m| m.machine.item_speeds())
             .collect_vec();
-        println!(
+        writeln!(
+            out,
             "Outputs: {}",
             outputs
                 .iter()
                 .map(|i| { format!("{}/s {}", rf(-i.speed), i.item) })
                 .join(" + ")
-        );
-        println!();
+        )
+        .unwrap();
+        out
     }
 
     pub fn set_item_speed_constraint(

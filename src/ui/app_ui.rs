@@ -3,7 +3,7 @@ use {
         app::{name_or_untitled, recipe_menu_items, MyApp},
         drop_down::DropDownBox,
     },
-    crate::{rf, snippet::SnippetMachine},
+    crate::{rf, snippet::SnippetMachine, ResultExtOrWarn},
     eframe::egui::{self, Color32, ComboBox, Key, Sense},
     egui::{Response, ScrollArea, TextEdit, Ui, Widget},
     itertools::Itertools,
@@ -266,7 +266,7 @@ impl MyApp {
                             //     self.selected_machine = i;
                             // }
                             ui.add_space(10.0);
-                            if machine.crafter.name == "source" || machine.crafter.name == "sink" {
+                            if machine.crafter.is_source_or_sink() {
                                 let r = ui.button("Craft");
                                 if r.contains_pointer() {
                                     egui::show_tooltip(
@@ -747,6 +747,9 @@ impl MyApp {
                     if ui.button("Solve again").clicked() {
                         self.alerts.clear();
                         self.after_machines_changed();
+                    }
+                    if ui.button("Copy description").clicked() {
+                        self.copy_description().or_warn();
                     }
                 });
 

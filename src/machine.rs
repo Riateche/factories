@@ -13,6 +13,18 @@ pub struct Crafter {
     pub module_inventory_size: u64,
 }
 
+impl Crafter {
+    pub fn is_source(&self) -> bool {
+        self.name == "source"
+    }
+    pub fn is_sink(&self) -> bool {
+        self.name == "sink"
+    }
+    pub fn is_source_or_sink(&self) -> bool {
+        self.name == "source" || self.name == "sink"
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ModuleType {
     Speed,
@@ -112,7 +124,7 @@ impl Machine {
         self.input_speeds().chain(self.output_speeds())
     }
 
-    pub fn io_text(&self) -> String {
+    pub fn description(&self) -> String {
         let inputs = self
             .input_speeds()
             .map(|ing| format!("{}/s {}", rf(ing.speed), ing.item))
@@ -133,22 +145,15 @@ impl Machine {
         } else {
             format!(" ➡ {}", outputs)
         };
-        let crafter_count = if self.crafter.name == "source" || self.crafter.name == "sink" {
+        let crafter_count = if self.crafter.is_source_or_sink() {
             String::new()
         } else {
             format!("{} × ", rf(self.crafter_count))
         };
-        let emoji = if self.crafter.name == "source" {
-            "∞"
-        } else if self.crafter.name == "sink" {
-            "🗑"
-        } else {
-            "🖩"
-        };
 
         format!(
-            "{}{}{} {}{}",
-            inputs, crafter_count, emoji, self.crafter.name, outputs
+            "{}{} {}{}",
+            inputs, crafter_count, self.crafter.name, outputs
         )
     }
 }

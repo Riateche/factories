@@ -1,5 +1,8 @@
+#![allow(dead_code)]
+
 use {crate::info::Info, itertools::Itertools, std::collections::BTreeSet, tracing::trace};
 
+// Adjust as necessary.
 const REACHABLE_RESOURCES: Option<&[&str]> = Some(&[
     "coal",
     "copper-ore",
@@ -10,36 +13,27 @@ const REACHABLE_RESOURCES: Option<&[&str]> = Some(&[
     "wood",
 ]);
 
+const HARVESTABLE_LIQUIDS: &[&str] = &["water", "lava", "heavy-oil", "ammoniacal-solution"];
+
 pub fn reachable_items(info: &Info) -> BTreeSet<String> {
-    let mut all_reachable_items: BTreeSet<String> = info
+    let harvestable_resources: BTreeSet<String> = info
         .game_data
         .entities
         .values()
         .filter(|v| v.resource_category.is_some() || v.type_ == "plant" || v.type_ == "tree")
         .flat_map(|v| &v.mineable_properties.as_ref().unwrap().products)
         .map(|v| v.name.clone())
+        .chain(HARVESTABLE_LIQUIDS.iter().map(|v| v.to_string()))
         .collect();
-    for s in ["water", "lava", "heavy-oil", "ammoniacal-solution"] {
-        all_reachable_items.insert(s.into());
-    }
-    if false {
-        println!("all_reachable_items #0: {all_reachable_items:?}\n");
-    }
+    trace!("harvestable_resources: {harvestable_resources:?}\n");
 
     let mut reachable_items: BTreeSet<String> = if let Some(resources) = REACHABLE_RESOURCES {
         resources.iter().map(|s| s.to_string()).collect()
     } else {
-        info.game_data
-            .entities
-            .values()
-            .filter(|v| v.resource_category.is_some() || v.type_ == "plant" || v.type_ == "tree")
-            .flat_map(|v| &v.mineable_properties.as_ref().unwrap().products)
-            .map(|v| v.name.clone())
-            .collect()
+        harvestable_resources
     };
 
     let mut verified_recipes = BTreeSet::new();
-
     let mut i = 0;
     loop {
         i += 1;
@@ -53,14 +47,12 @@ pub fn reachable_items(info: &Info) -> BTreeSet<String> {
             {
                 for product in &recipe.products {
                     if !reachable_items.contains(&product.name) {
-                        if false {
-                            println!(
-                                "{} | {} -> {}",
-                                recipe.name,
-                                recipe.ingredients.iter().map(|ing| &ing.name).join(", "),
-                                product.name
-                            );
-                        }
+                        trace!(
+                            "{} | {} -> {}",
+                            recipe.name,
+                            recipe.ingredients.iter().map(|ing| &ing.name).join(", "),
+                            product.name
+                        );
                         new_reachable_items.insert(product.name.clone());
                     }
                 }
@@ -70,14 +62,7 @@ pub fn reachable_items(info: &Info) -> BTreeSet<String> {
                         .iter()
                         .find(|product| reachable_items.contains(&product.name))
                     {
-                        if false {
-                            println!("loop detected for {}: {recipe:?}\n\n", bad_product.name);
-                        }
-                        // println!("verified_recipes {verified_recipes:?}");
-                        // println!("reachable_items {reachable_items:?}\n\n");
-                        // if recipe.name == "copper-plate" {
-                        //     std::process::exit(1);
-                        // }
+                        trace!("loop detected for {}: {recipe:?}\n\n", bad_product.name);
                     }
                     verified_recipes.insert(recipe.name.to_string());
                 }
@@ -112,15 +97,15 @@ pub fn list_ambigous_sources(info: &Info) {
             })
             .collect_vec();
         if recipes.len() > 1 {
-            println!("{item}");
+            trace!("{item}");
             for recipe in recipes {
-                println!(
+                trace!(
                     "- [{}] {}",
                     recipe.name,
                     recipe.ingredients.iter().map(|ing| &ing.name).join(" + ")
                 );
             }
-            println!();
+            trace!("");
         }
     }
 }
