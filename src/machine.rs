@@ -1,6 +1,7 @@
 use {
     crate::{
         game_data::{Ingredient, Product, Recipe},
+        primitives::{Amount, Speed},
         rf,
     },
     itertools::Itertools,
@@ -58,7 +59,7 @@ pub struct Machine {
 #[derive(Debug, Clone)]
 pub struct ItemSpeed {
     pub item: String,
-    pub speed: f64,
+    pub speed: Speed,
 }
 
 impl Machine {
@@ -77,13 +78,13 @@ impl Machine {
                 category: SOURCE.into(),
                 ingredients: Vec::new(),
                 products: vec![Product {
-                    amount: 1.0,
+                    amount: Amount::ONE,
                     name: item.into(),
                     type_: String::new(),
                     extra_count_fraction: 0.0,
                     probability: 1.0,
                     temperature: None,
-                    ignored_by_productivity: 0.,
+                    ignored_by_productivity: Amount::ZERO,
                 }],
                 hidden: false,
                 hidden_from_flow_stats: false,
@@ -111,7 +112,7 @@ impl Machine {
                 enabled: true,
                 category: SINK.into(),
                 ingredients: vec![Ingredient {
-                    amount: 1.0,
+                    amount: Amount::ONE,
                     name: item.into(),
                     type_: String::new(),
                 }],
@@ -137,7 +138,7 @@ impl Machine {
     }
 
     // Not including productivity.
-    pub fn crafts_per_second(&self) -> f64 {
+    pub fn crafts_per_second(&self) -> Speed {
         let beacon_transmission_strength = self.beacon_transmission_strength();
         let module_speed_percents: f64 = self
             .modules
@@ -153,8 +154,9 @@ impl Machine {
         let speed_percents =
             100. + module_speed_percents + beacon_transmission_strength * beacon_speed_percents;
 
-        (speed_percents / 100.) * self.crafter.crafting_speed * self.crafter_count
-            / self.recipe.energy
+        ((speed_percents / 100.) * self.crafter.crafting_speed * self.crafter_count
+            / self.recipe.energy)
+            .into()
     }
 
     pub fn input_speeds(&self) -> impl Iterator<Item = ItemSpeed> + '_ {
@@ -199,12 +201,12 @@ impl Machine {
     pub fn description(&self) -> String {
         let inputs = self
             .input_speeds()
-            .map(|ing| format!("{}/s {}", rf(ing.speed), ing.item))
+            .map(|ing| format!("{} {}", ing.speed, ing.item))
             .join(" + ");
 
         let outputs = self
             .output_speeds()
-            .map(|ing| format!("{}/s {}", rf(ing.speed), ing.item))
+            .map(|ing| format!("{} {}", ing.speed, ing.item))
             .join(" + ");
 
         let inputs = if inputs.is_empty() {

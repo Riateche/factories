@@ -1,7 +1,8 @@
-use eframe::egui::{self, Color32, Response, Sense, Ui};
-use regex::Regex;
-
-use super::app::icon_url;
+use {
+    super::app::icon_url,
+    eframe::egui::{self, Color32, Response, Sense, Ui},
+    regex::Regex,
+};
 
 pub trait UiExt {
     fn with_tooltip(

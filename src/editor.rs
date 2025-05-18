@@ -2,6 +2,7 @@ use {
     crate::{
         info::Info,
         machine::{Machine, Module, ModuleType},
+        primitives::{MachineCount, Speed},
         rf,
         snippet::{Snippet, SnippetMachine},
     },
@@ -37,15 +38,15 @@ impl EditorMachine {
 pub struct Editor {
     info: Info,
     machines: Vec<EditorMachine>,
-    item_speed_constraints: BTreeMap<String, f64>,
+    item_speed_constraints: BTreeMap<String, Speed>,
     solved: bool,
 }
 
 #[derive(Debug, Clone)]
 enum Constraint {
     ItemSumsToZero { item: String },
-    ItemProduction { item: String, speed: f64 },
-    MachineCount { index: usize, count: f64 },
+    ItemProduction { item: String, speed: Speed },
+    MachineCount { index: usize, count: MachineCount },
 }
 
 impl Editor {
@@ -196,7 +197,7 @@ impl Editor {
         if add_auto_constraint {
             if let Some(product) = recipe.products.get(0) {
                 self.item_speed_constraints
-                    .insert(product.name.clone(), 1.0);
+                    .insert(product.name.clone(), Speed::ONE);
             }
         }
         self.after_machines_changed();
@@ -270,7 +271,7 @@ impl Editor {
             "Inputs: {}\n",
             inputs
                 .iter()
-                .map(|i| { format!("{}/s {}", rf(i.speed), i.item) })
+                .map(|i| { format!("{} {}", i.speed, i.item) })
                 .join(" + ")
         )
         .unwrap();
@@ -293,7 +294,7 @@ impl Editor {
             "Outputs: {}",
             outputs
                 .iter()
-                .map(|i| { format!("{}/s {}", rf(-i.speed), i.item) })
+                .map(|i| { format!("{} {}", -i.speed, i.item) })
                 .join(" + ")
         )
         .unwrap();
@@ -303,7 +304,7 @@ impl Editor {
     pub fn set_item_speed_constraint(
         &mut self,
         item: &str,
-        speed: Option<f64>,
+        speed: Option<Speed>,
         replace_all: bool,
     ) -> anyhow::Result<()> {
         if replace_all {
@@ -324,7 +325,7 @@ impl Editor {
     pub fn set_machine_count_constraint(
         &mut self,
         index: usize,
-        count: Option<f64>,
+        count: Option<MachineCount>,
         replace_all: bool,
     ) -> anyhow::Result<()> {
         if replace_all {
@@ -530,14 +531,16 @@ impl Editor {
                     .into_iter()
                     .filter(|i| &i.item == item)
                     .map(|i| i.speed)
-                    .sum::<f64>(),
+                    .sum::<Speed>()
+                    .into(),
                 Constraint::ItemProduction { item, speed: _ } => machine
                     .machine
                     .item_speeds()
                     .into_iter()
-                    .filter(|i| &i.item == item && i.speed > 0.0)
+                    .filter(|i| &i.item == item && i.speed > Speed::ZERO)
                     .map(|i| i.speed)
-                    .sum::<f64>(),
+                    .sum::<Speed>()
+                    .into(),
                 Constraint::MachineCount {
                     index: machine_index,
                     count: _,
@@ -552,8 +555,8 @@ impl Editor {
         });
         let b = DVector::from_fn(constraints.len(), |row, _| match &constraints[row] {
             Constraint::ItemSumsToZero { item: _ } => 0.0,
-            Constraint::ItemProduction { item: _, speed } => *speed,
-            Constraint::MachineCount { index: _, count } => *count,
+            Constraint::ItemProduction { item: _, speed } => (*speed).into(),
+            Constraint::MachineCount { index: _, count } => (*count).into(),
         });
         trace!("constraints: {constraints:?}");
         trace!("a=");
@@ -672,7 +675,7 @@ impl Editor {
         }
     }
 
-    pub fn item_speed_constraints(&self) -> &BTreeMap<String, f64> {
+    pub fn item_speed_constraints(&self) -> &BTreeMap<String, Speed> {
         &self.item_speed_constraints
     }
 }

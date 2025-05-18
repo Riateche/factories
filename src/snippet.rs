@@ -1,6 +1,8 @@
-use std::collections::BTreeMap;
-
-use serde::{Deserialize, Serialize};
+use {
+    crate::primitives::{MachineCount, Speed},
+    serde::{Deserialize, Serialize},
+    std::collections::BTreeMap,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -19,7 +21,7 @@ pub enum SnippetMachine {
         beacons: Vec<Vec<String>>,
         recipe: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        count_constraint: Option<f64>,
+        count_constraint: Option<MachineCount>,
     },
 }
 
@@ -27,5 +29,5 @@ pub enum SnippetMachine {
 pub struct Snippet {
     pub machines: Vec<SnippetMachine>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub item_speed_constraints: BTreeMap<String, f64>,
+    pub item_speed_constraints: BTreeMap<String, Speed>,
 }

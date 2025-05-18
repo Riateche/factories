@@ -4,7 +4,7 @@ use {
         drop_down::DropDownBox,
         ui_ext::UiExt,
     },
-    crate::{machine::Module, rf, snippet::SnippetMachine, ResultExtOrWarn},
+    crate::{machine::Module, primitives::Speed, rf, snippet::SnippetMachine, ResultExtOrWarn},
     eframe::egui::{self, Color32, ComboBox, Frame, Key},
     egui::{Response, ScrollArea, TextEdit, Ui, Widget},
     itertools::Itertools,
@@ -153,11 +153,11 @@ impl MyApp {
                                 .fill(Color32::from_rgb(255, 230, 230))
                                 .show(ui, |ui| {
                                     for stack in &item_speeds {
-                                        if stack.speed < 0.0 {
+                                        if stack.speed < Speed::ZERO {
                                             ui.rich_label(format!(
-                                                "{}{}/s @[{}:]",
+                                                "{}{} @[{}:]",
                                                 if is_first { "" } else { "+ " },
-                                                rf(-stack.speed),
+                                                -stack.speed,
                                                 stack.item,
                                             ));
                                             is_first = false;
@@ -172,7 +172,7 @@ impl MyApp {
                                     ..
                                 } = editor_machine.snippet()
                                 {
-                                    format!("@[$lock:Count constrained to {}]", rf(*constraint))
+                                    format!("@[$lock:Count constrained to {}]", constraint)
                                 } else {
                                     String::new()
                                 };
@@ -245,11 +245,11 @@ impl MyApp {
                                 .fill(Color32::from_rgb(230, 255, 230))
                                 .show(ui, |ui| {
                                     for stack in &item_speeds {
-                                        if stack.speed > 0.0 {
+                                        if stack.speed > Speed::ZERO {
                                             ui.rich_label(format!(
-                                                "{}{}/s @[{}:]",
+                                                "{}{} @[{}:]",
                                                 if is_first { "➡ " } else { "+ " },
-                                                rf(stack.speed),
+                                                stack.speed,
                                                 stack.item,
                                             ));
                                             is_first = false;
@@ -621,7 +621,7 @@ impl MyApp {
                     for (item, speed) in self.editor.item_speed_constraints() {
                         ui.horizontal(|ui| {
                             ui.rich_label(format!(
-                                "@[$lock:Item speed constraint] @[{}]*: {}/s",
+                                "@[$lock:Item speed constraint] @[{}]*: {}",
                                 item, speed
                             ));
                             if ui.button("Edit").clicked() {
@@ -736,7 +736,7 @@ impl MyApp {
                     ui.horizontal(|ui| {
                         ui.label("Tip:");
                         for (speed, item) in &self.belt_speeds {
-                            ui.rich_label(format!("@[{item}:] = {speed}/s    "));
+                            ui.rich_label(format!("@[{item}:] = {speed}    "));
                         }
                     });
                 });

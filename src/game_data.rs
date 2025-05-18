@@ -1,4 +1,5 @@
 use {
+    crate::primitives::Amount,
     anyhow::Context,
     serde::{Deserialize, Deserializer, Serialize},
     std::collections::BTreeMap,
@@ -65,15 +66,15 @@ pub struct Ingredient {
     #[serde(rename = "type")]
     pub type_: String, // item or fluid
     pub name: String,
-    pub amount: f64,
+    pub amount: Amount,
 }
 
 // Skipped "fluidbox_index", "ignored_by_stats", "percent_spoiled" properties
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Product {
-    pub amount: f64,
+    pub amount: Amount,
     #[serde(default)]
-    pub ignored_by_productivity: f64,
+    pub ignored_by_productivity: Amount,
     pub name: String,
     #[serde(rename = "type")]
     pub type_: String, // item or fluid
@@ -109,7 +110,7 @@ pub struct MineableProperties {
     pub mining_time: f64,
     #[serde(deserialize_with = "deserialize_array_or_object")]
     pub products: Vec<Product>,
-    pub fluid_amount: Option<f64>,
+    pub fluid_amount: Option<Amount>,
     pub required_fluid: Option<String>,
 }
 

@@ -1,7 +1,6 @@
 use {
-    crate::{editor::Editor, rf, snippet::SnippetMachine},
+    crate::{editor::Editor, primitives::Speed, rf, snippet::SnippetMachine},
     itertools::Itertools,
-    ordered_float::OrderedFloat,
     std::{cmp::min, collections::VecDeque, fmt::Write},
     tracing::warn,
 };
@@ -71,7 +70,7 @@ pub fn generate(editor: &Editor, title: &str) -> String {
                     .machine()
                     .item_speeds()
                     .into_iter()
-                    .find(|item_speed| item_speed.item == item && item_speed.speed > 0.0)
+                    .find(|item_speed| item_speed.item == item && item_speed.speed > Speed::ZERO)
                     .map(|item_speed| (machine_index, item_speed.speed))
             })
             .collect_vec();
@@ -85,12 +84,12 @@ pub fn generate(editor: &Editor, title: &str) -> String {
                     .machine()
                     .item_speeds()
                     .into_iter()
-                    .find(|item_speed| item_speed.item == item && item_speed.speed < 0.0)
+                    .find(|item_speed| item_speed.item == item && item_speed.speed < Speed::ZERO)
                     .map(|item_speed| (machine_index, -item_speed.speed))
             })
             .collect();
 
-        let epsilon = 0.001;
+        let epsilon = Speed::from(0.001);
         'outer: for (source_machine, source_speed) in sources {
             let mut remaining_speed = source_speed;
             loop {
@@ -102,18 +101,11 @@ pub fn generate(editor: &Editor, title: &str) -> String {
                     );
                     break 'outer;
                 };
-                let current_speed = min(
-                    OrderedFloat(remaining_speed),
-                    OrderedFloat(*destination_speed),
-                )
-                .0;
+                let current_speed = min(remaining_speed, *destination_speed);
                 writeln!(
                     out,
-                    "    machine{}-->|{}/s *{}*|machine{}",
-                    source_machine,
-                    rf(current_speed),
-                    item,
-                    destination_machine
+                    "    machine{}-->|{} *{}*|machine{}",
+                    source_machine, current_speed, item, destination_machine
                 )
                 .unwrap();
                 *destination_speed -= current_speed;

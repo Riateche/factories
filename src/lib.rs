@@ -5,12 +5,12 @@ mod flowchart;
 mod game_data;
 mod info;
 mod machine;
+mod primitives;
 mod snippet;
 pub mod ui;
 
-use tracing::warn;
-
 pub use crate::info::Info;
+use tracing::warn;
 
 /// Round float to second decimal digit.
 /// It's better than formatting it because we want values like "5.2", not "5.20".
