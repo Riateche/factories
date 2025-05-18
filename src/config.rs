@@ -1,6 +1,7 @@
-use serde::{Deserialize, Serialize};
-
-use crate::primitives::CrafterName;
+use {
+    crate::primitives::CrafterName,
+    serde::{Deserialize, Serialize},
+};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Config {

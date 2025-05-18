@@ -184,7 +184,6 @@ impl MyApp {
             .flat_map(|recipe| recipe_menu_items(app.editor.info(), recipe))
             .collect();
 
-        tracing::info!("test info");
         Ok(app)
     }
 

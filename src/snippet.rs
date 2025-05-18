@@ -12,6 +12,12 @@ pub enum MachineSnippet {
     Crafter(CrafterSnippet),
 }
 
+impl From<CrafterSnippet> for MachineSnippet {
+    fn from(value: CrafterSnippet) -> Self {
+        Self::Crafter(value)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SourceSinkSnippet {
     pub item: ItemName,

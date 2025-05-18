@@ -5,7 +5,8 @@ use {
         ui_ext::UiExt,
     },
     crate::{
-        machine::{Beacon, Module},
+        machine::Beacon,
+        module_counts,
         primitives::{CrafterName, RecipeName, Speed},
         rf,
         snippet::{CrafterSnippet, MachineSnippet},
@@ -14,10 +15,7 @@ use {
     eframe::egui::{self, Color32, ComboBox, Frame, Key},
     egui::{Response, ScrollArea, TextEdit, Ui, Widget},
     itertools::Itertools,
-    std::{
-        collections::BTreeMap,
-        time::{Duration, Instant},
-    },
+    std::time::{Duration, Instant},
 };
 
 impl MyApp {
@@ -820,12 +818,4 @@ impl eframe::App for MyApp {
             self.show(ui);
         });
     }
-}
-
-fn module_counts(modules: &[Module]) -> BTreeMap<&str, usize> {
-    let mut module_counts = BTreeMap::<_, usize>::new();
-    for module in modules {
-        *module_counts.entry(module.name.as_str()).or_default() += 1;
-    }
-    module_counts
 }

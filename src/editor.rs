@@ -2,6 +2,7 @@ use {
     crate::{
         info::Info,
         machine::{Beacon, Machine, ModuleType},
+        module_counts,
         primitives::{CrafterName, ItemName, MachineCount, ModuleName, RecipeName, Speed},
         rf,
         snippet::{BeaconSnippet, CrafterSnippet, MachineSnippet, Snippet, SourceSinkSnippet},
@@ -52,59 +53,64 @@ impl Editor {
         })
     }
 
-    fn create_machine(&self, snippet: &MachineSnippet) -> anyhow::Result<Machine> {
-        let output = match snippet {
-            MachineSnippet::Source(snippet) => Machine::new_source(&snippet.item),
-            MachineSnippet::Sink(snippet) => Machine::new_sink(&snippet.item),
-            MachineSnippet::Crafter(snippet) => {
-                let recipe = self.info.game_data.recipe(&snippet.recipe)?.clone();
-                let crafters = self
-                    .info
-                    .category_to_crafter
-                    .get(&recipe.category)
-                    .context("unknown recipe category")?;
-                ensure!(!crafters.is_empty());
-                let name = &snippet.crafter;
-                if !crafters.iter().any(|c| c == name) {
-                    bail!("requested crafter {name:?}, but available crafters for {recipe:?} are: {crafters:?}");
-                }
-                let crafter = self
-                    .info
-                    .crafters
-                    .get(name)
-                    .with_context(|| format!("crafter not found: {name:?}"))?
-                    .clone();
+    fn create_crafter(&self, snippet: &CrafterSnippet) -> anyhow::Result<Machine> {
+        let recipe = self.info.game_data.recipe(&snippet.recipe)?.clone();
+        let crafters = self
+            .info
+            .category_to_crafter
+            .get(&recipe.category)
+            .context("unknown recipe category")?;
+        ensure!(!crafters.is_empty());
+        let name = &snippet.crafter;
+        if !crafters.iter().any(|c| c == name) {
+            bail!("requested crafter {name:?}, but available crafters for {recipe:?} are: {crafters:?}");
+        }
+        let crafter = self
+            .info
+            .crafters
+            .get(name)
+            .with_context(|| format!("crafter not found: {name:?}"))?
+            .clone();
 
-                Machine {
-                    crafter,
-                    crafter_count: 1.0,
-                    modules: snippet
-                        .modules
-                        .iter()
-                        .map(|m| self.info.module(m))
-                        .transpose_into_fallible()
-                        .cloned()
-                        .collect()?,
-                    beacons: snippet
-                        .beacons
-                        .iter()
-                        .map(|beacon| {
-                            beacon
-                                .modules
-                                .iter()
-                                .map(|m| self.info.module(m))
-                                .transpose_into_fallible()
-                                .cloned()
-                                .collect()
-                        })
-                        .transpose_into_fallible()
-                        .map(|modules| Ok(Beacon { modules }))
-                        .collect()?,
-                    recipe,
-                }
-            }
-        };
-        Ok(output)
+        let modules = snippet
+            .modules
+            .iter()
+            .map(|name| self.info.module(name))
+            .transpose_into_fallible()
+            .cloned()
+            .collect()?;
+
+        let beacons = snippet
+            .beacons
+            .iter()
+            .map(|beacon| {
+                beacon
+                    .modules
+                    .iter()
+                    .map(|name| self.info.module(name))
+                    .transpose_into_fallible()
+                    .cloned()
+                    .collect()
+            })
+            .transpose_into_fallible()
+            .map(|modules| Ok(Beacon { modules }))
+            .collect()?;
+
+        Ok(Machine {
+            crafter,
+            crafter_count: 1.0,
+            modules,
+            beacons,
+            recipe,
+        })
+    }
+
+    fn create_machine(&self, snippet: &MachineSnippet) -> anyhow::Result<Machine> {
+        match snippet {
+            MachineSnippet::Source(snippet) => Ok(Machine::new_source(&snippet.item)),
+            MachineSnippet::Sink(snippet) => Ok(Machine::new_sink(&snippet.item)),
+            MachineSnippet::Crafter(snippet) => self.create_crafter(snippet),
+        }
     }
 
     pub fn load_snippet(&mut self, path: impl AsRef<Path>) -> anyhow::Result<()> {
@@ -180,13 +186,14 @@ impl Editor {
         let add_auto_constraint =
             self.machines.is_empty() && self.item_speed_constraints.is_empty();
 
-        let snippet = MachineSnippet::Crafter(CrafterSnippet {
+        let snippet = CrafterSnippet {
             crafter,
             modules: vec![],
             beacons: vec![],
             recipe: recipe_name.clone(),
             count_constraint: None,
-        });
+        }
+        .into();
         let machine = self.create_machine(&snippet)?;
         self.machines.push(EditorMachine { snippet, machine });
 
@@ -204,6 +211,9 @@ impl Editor {
         ensure!(index < self.machines.len(), "invalid machine index");
         self.machines.remove(index);
         self.after_machines_changed();
+        if self.machines.is_empty() {
+            self.item_speed_constraints.clear();
+        }
         Ok(())
     }
 
@@ -216,41 +226,41 @@ impl Editor {
             .machines
             .get_mut(index)
             .context("invalid machine index")?;
-        match &mut machine.snippet {
+        let snippet = match &mut machine.snippet {
             MachineSnippet::Source(_) | MachineSnippet::Sink(_) => {
                 bail!("cannot set crafter for source or sink");
             }
-            MachineSnippet::Crafter(snippet) => {
-                let crafters = self
-                    .info
-                    .category_to_crafter
-                    .get(&machine.machine.recipe.category)
-                    .context("unknown recipe category")?;
-                if !crafters.iter().any(|s| s == new_crafter_name) {
-                    bail!(
-                        "crafter {:?} not allowed for recipe {:?}",
-                        new_crafter_name,
-                        snippet.recipe
-                    );
-                }
-
-                let new_crafter = self
-                    .info
-                    .crafters
-                    .get(new_crafter_name)
-                    .with_context(|| format!("crafter not found: {:?}", snippet.crafter))?
-                    .clone();
-                snippet
-                    .modules
-                    .truncate(new_crafter.module_inventory_size as usize);
-                snippet.crafter = new_crafter_name.clone();
-                machine
-                    .machine
-                    .modules
-                    .truncate(new_crafter.module_inventory_size as usize);
-                machine.machine.crafter = new_crafter;
-            }
+            MachineSnippet::Crafter(snippet) => snippet,
+        };
+        let crafters = self
+            .info
+            .category_to_crafter
+            .get(&machine.machine.recipe.category)
+            .context("unknown recipe category")?;
+        if !crafters.iter().any(|s| s == new_crafter_name) {
+            bail!(
+                "crafter {:?} not allowed for recipe {:?}",
+                new_crafter_name,
+                snippet.recipe
+            );
         }
+
+        let new_crafter = self
+            .info
+            .crafters
+            .get(new_crafter_name)
+            .with_context(|| format!("crafter not found: {:?}", snippet.crafter))?
+            .clone();
+        snippet
+            .modules
+            .truncate(new_crafter.module_inventory_size as usize);
+        snippet.crafter = new_crafter_name.clone();
+        machine
+            .machine
+            .modules
+            .truncate(new_crafter.module_inventory_size as usize);
+        machine.machine.crafter = new_crafter;
+
         self.after_machines_changed();
         Ok(())
     }
@@ -265,20 +275,32 @@ impl Editor {
             .collect_vec();
         writeln!(
             out,
-            "Inputs: {}\n",
+            "Inputs: {}",
             inputs
                 .iter()
                 .map(|i| { format!("{} {}", i.speed, i.item) })
                 .join(" + ")
         )
         .unwrap();
+        writeln!(out, "==============================").unwrap();
 
         for machine in &self.machines {
-            if !machine.machine.crafter.is_source_or_sink() {
-                writeln!(out, "{}", machine.machine.description()).unwrap();
+            if machine.machine.crafter.is_source_or_sink() {
+                continue;
             }
+            writeln!(out, "{}", machine.machine.description()).unwrap();
+            let beacon_text = machine.machine.beacon_text();
+            let modules_text = module_counts(&machine.machine.modules)
+                .into_iter()
+                .map(|(module, count)| format!("{count} × {module}"))
+                .chain(Some(beacon_text).filter(|t| !t.is_empty()))
+                .join(", ");
+            if !modules_text.is_empty() {
+                writeln!(out, "[{}]", modules_text).unwrap();
+            }
+            writeln!(out, "------------------------------").unwrap();
         }
-        writeln!(out).unwrap();
+        writeln!(out, "==============================").unwrap();
 
         let outputs = self
             .machines

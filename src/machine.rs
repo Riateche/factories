@@ -1,6 +1,7 @@
 use {
     crate::{
         game_data::{Ingredient, Product, Recipe},
+        module_counts,
         primitives::{Amount, CrafterName, ItemName, ModuleName, RecipeCategory, Speed},
         rf,
     },
@@ -232,5 +233,29 @@ impl Machine {
             "{}{} {}{}",
             inputs, crafter_count, self.crafter.name, outputs
         )
+    }
+
+    pub fn beacon_text(&self) -> String {
+        if self.beacons.is_empty() {
+            return String::new();
+        }
+        if self.beacons.iter().all_equal() {
+            let modules = module_counts(&self.beacons[0].modules)
+                .into_iter()
+                .map(|(name, count)| format!("{count} × {name}"))
+                .join(",");
+            format!("{} × beacon({})", self.beacons.len(), modules)
+        } else {
+            self.beacons
+                .iter()
+                .map(|beacon| {
+                    let modules = module_counts(&beacon.modules)
+                        .into_iter()
+                        .map(|(name, count)| format!("{count} × {name}"))
+                        .join(",");
+                    format!("beacon({})", modules)
+                })
+                .join("\n")
+        }
     }
 }
