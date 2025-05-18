@@ -4,23 +4,26 @@ use {
         text::{CCursor, CCursorRange},
         Id, Response, ScrollArea, TextEdit, Ui, Widget, WidgetText,
     },
+    itertools::Itertools,
     std::{borrow::Cow, hash::Hash},
 };
 
 pub trait DropDownOption: Widget {
     fn search_text(&self) -> Cow<str>;
     fn insert_text(&self) -> Cow<str>;
+    fn id(&self) -> Id;
 }
 
 pub struct DropDownBox<'a, I> {
     buf: &'a mut String,
-    popup_id: Id,
-    it: Option<I>,
+    base_popup_id: Id,
+    it: I,
     hint_text: WidgetText,
     filter_by_input: bool,
     select_on_focus: bool,
     desired_width: Option<f32>,
     max_height: Option<f32>,
+    min_scrolled_height: Option<f32>,
 }
 
 impl<'a, 'b, V, I> DropDownBox<'a, I>
@@ -34,14 +37,15 @@ where
         buf: &'a mut String,
     ) -> Self {
         Self {
-            popup_id: Id::new(id_source),
-            it: Some(it.into_iter()),
+            base_popup_id: Id::new(id_source),
+            it: it.into_iter(),
             buf,
             hint_text: WidgetText::default(),
             filter_by_input: true,
             select_on_focus: false,
             desired_width: None,
             max_height: None,
+            min_scrolled_height: None,
         }
     }
 
@@ -75,7 +79,12 @@ where
         self
     }
 
-    pub fn show(&mut self, ui: &mut Ui) -> DropDownBoxOutput<'b, V> {
+    pub fn min_scrolled_height(mut self, height: f32) -> Self {
+        self.min_scrolled_height = height.into();
+        self
+    }
+
+    pub fn show(self, ui: &mut Ui) -> DropDownBoxOutput<'b, V> {
         let mut edit = TextEdit::singleline(self.buf).hint_text(self.hint_text.clone());
         if let Some(dw) = self.desired_width {
             edit = edit.desired_width(dw);
@@ -83,6 +92,20 @@ where
         let mut option_selected = None;
         let mut edit_output = edit.show(ui);
         let mut r = edit_output.response;
+
+        let filtered_items = self
+            .it
+            .filter(|option| {
+                if self.filter_by_input && !self.buf.is_empty() {
+                    option.search_text().contains(&self.buf.to_lowercase())
+                } else {
+                    true
+                }
+            })
+            .collect_vec();
+        let ids = filtered_items.iter().map(|i| i.id()).collect_vec();
+        let popup_id = Id::new((self.base_popup_id, ids));
+
         if r.has_focus() {
             if self.select_on_focus {
                 edit_output
@@ -94,7 +117,7 @@ where
                     )));
                 edit_output.state.store(ui.ctx(), r.id);
             }
-            ui.memory_mut(|m| m.open_popup(self.popup_id));
+            ui.memory_mut(|m| m.open_popup(popup_id));
         }
 
         let request_popup_focus =
@@ -105,7 +128,7 @@ where
         let mut changed = false;
         egui::popup_below_widget(
             ui,
-            self.popup_id,
+            popup_id,
             &r,
             egui::PopupCloseBehavior::CloseOnClick,
             |ui| {
@@ -114,34 +137,26 @@ where
                 }
 
                 let mut row = 0;
-                ScrollArea::vertical()
-                    .max_height(500.)
-                    .min_scrolled_height(500.)
-                    .show(ui, |ui| {
-                        for option in self.it.take().unwrap() {
-                            let search_text = option.search_text();
-                            if self.filter_by_input
-                                && !self.buf.is_empty()
-                                && !search_text
-                                    .to_lowercase()
-                                    .contains(&self.buf.to_lowercase())
-                            {
-                                continue;
-                            }
-
-                            let response = option.ui(ui);
-                            if row == 0 && request_popup_focus {
-                                response.request_focus();
-                            }
-                            if response.clicked() {
-                                *self.buf = option.insert_text().into();
-                                changed = true;
-                                option_selected = Some(option);
-                                ui.memory_mut(|m| m.close_popup());
-                            }
-                            row += 1;
+                let mut scroll_area = ScrollArea::vertical();
+                if let Some(value) = self.min_scrolled_height {
+                    scroll_area = scroll_area.min_scrolled_height(value);
+                }
+                scroll_area.show(ui, |ui| {
+                    ui.spacing_mut().item_spacing.y = 0.;
+                    for option in filtered_items {
+                        let response = option.ui(ui);
+                        if row == 0 && request_popup_focus {
+                            response.request_focus();
                         }
-                    });
+                        if response.clicked() {
+                            *self.buf = option.insert_text().into();
+                            changed = true;
+                            option_selected = Some(option);
+                            ui.memory_mut(|m| m.close_popup());
+                        }
+                        row += 1;
+                    }
+                });
             },
         );
 
@@ -168,7 +183,7 @@ where
     I: Iterator<Item = &'b V>,
     &'b V: DropDownOption + 'b,
 {
-    fn ui(mut self, ui: &mut Ui) -> Response {
+    fn ui(self, ui: &mut Ui) -> Response {
         self.show(ui).response
     }
 }

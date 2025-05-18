@@ -35,6 +35,14 @@ impl MyApp {
                                     "recipe",
                                     &mut self.recipe_search_text,
                                 )
+                                .min_scrolled_height(
+                                    ui.input(|input| {
+                                        input
+                                            .viewport()
+                                            .inner_rect
+                                            .map_or(0., |rect| rect.height() - 100.)
+                                    }) - ui.next_widget_position().y,
+                                )
                                 .show(ui);
                                 if self.auto_focus && ui.memory(|m| m.focused()).is_none() {
                                     drop_down_response.response.request_focus();

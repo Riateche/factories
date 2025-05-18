@@ -5,7 +5,7 @@ use {
     },
     anyhow::{format_err, Context},
     arboard::Clipboard,
-    eframe::egui::Widget,
+    eframe::egui::{Align, Id, Layout, Widget},
     itertools::Itertools,
     ordered_float::OrderedFloat,
     std::{
@@ -263,9 +263,23 @@ pub struct RecipeMenuItem {
     recipe: String,
     crafter: Option<String>,
     text: String,
+    id: Id,
 }
 
 impl RecipeMenuItem {
+    pub fn new(recipe: String, crafter: Option<String>) -> Self {
+        RecipeMenuItem {
+            id: Id::new(("RecipeMenuItem", &recipe, &crafter)),
+            text: if let Some(crafter) = &crafter {
+                format!("{} @ {}", recipe, crafter)
+            } else {
+                recipe.clone()
+            },
+            recipe,
+            crafter,
+        }
+    }
+
     pub fn text(&self) -> &str {
         &self.text
     }
@@ -284,7 +298,15 @@ impl Widget for &RecipeMenuItem {
         let mut r = None;
         let out_r = ui.horizontal(|ui| {
             ui.image(icon_url(&self.recipe));
-            r = Some(ui.selectable_label(false, &self.text));
+            let mut l = Layout::left_to_right(Align::Center);
+            l.main_justify = true;
+            l.main_align = Align::LEFT;
+
+            ui.with_layout(l, |ui| {
+                ui.spacing_mut().button_padding.y = 3.;
+                r = Some(ui.selectable_label(false, &self.text));
+            });
+            //ui.available_size()
         });
         r.unwrap_or(out_r.response)
     }
@@ -297,6 +319,10 @@ impl DropDownOption for &RecipeMenuItem {
 
     fn insert_text(&self) -> std::borrow::Cow<str> {
         Cow::Borrowed(&self.text)
+    }
+
+    fn id(&self) -> Id {
+        self.id
     }
 }
 
@@ -318,19 +344,11 @@ pub fn recipe_menu_items(info: &Info, recipe: &Recipe) -> Vec<RecipeMenuItem> {
         .expect("missing item in category_to_crafter");
 
     if info.auto_select_crafter(crafters).is_some() {
-        vec![RecipeMenuItem {
-            recipe: recipe.name.clone(),
-            crafter: None,
-            text: recipe.name.clone(),
-        }]
+        vec![RecipeMenuItem::new(recipe.name.clone(), None)]
     } else {
         crafters
             .iter()
-            .map(move |crafter| RecipeMenuItem {
-                recipe: recipe.name.clone(),
-                crafter: Some(crafter.clone()),
-                text: format!("{} @ {}", &recipe.name, crafter),
-            })
+            .map(move |crafter| RecipeMenuItem::new(recipe.name.clone(), Some(crafter.clone())))
             .collect()
     }
 }
