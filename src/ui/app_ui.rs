@@ -1,10 +1,11 @@
 use {
     super::{
-        app::{icon_url, item_icon_url, recipe_menu_items, MyApp, RecipeMenuItem},
+        app::{recipe_menu_items, MyApp, RecipeMenuItem},
         drop_down::DropDownBox,
+        ui_ext::UiExt,
     },
     crate::{rf, snippet::SnippetMachine, ResultExtOrWarn},
-    eframe::egui::{self, Color32, ComboBox, Key, Sense},
+    eframe::egui::{self, Color32, ComboBox, Key},
     egui::{Response, ScrollArea, TextEdit, Ui, Widget},
     itertools::Itertools,
     std::time::{Duration, Instant},
@@ -152,17 +153,7 @@ impl MyApp {
                                         if is_first { "" } else { "+ " },
                                         rf(-stack.speed)
                                     ));
-                                    let r = ui.image(item_icon_url(&stack.item));
-                                    if r.contains_pointer() {
-                                        egui::show_tooltip(
-                                            ui.ctx(),
-                                            ui.layer_id(),
-                                            egui::Id::new(&stack.item),
-                                            |ui| {
-                                                ui.label(&stack.item);
-                                            },
-                                        );
-                                    }
+                                    ui.item_icon(&stack.item, Some(&stack.item));
                                     if show_names {
                                         ui.label(&stack.item);
                                     }
@@ -179,25 +170,15 @@ impl MyApp {
                                 if is_first { "" } else { "➡ " },
                                 crafter_count,
                             ));
-                            let r = ui.image(item_icon_url(&machine.crafter.name));
-                            if r.contains_pointer() {
-                                let tooltip = if (machine.recipe.products.len() == 1
-                                    && machine.recipe.name == machine.recipe.products[0].name)
-                                    || machine.crafter.is_source_or_sink()
-                                {
-                                    machine.crafter.name.clone()
-                                } else {
-                                    format!("{}({})", machine.crafter.name, machine.recipe.name)
-                                };
-                                egui::show_tooltip(
-                                    ui.ctx(),
-                                    ui.layer_id(),
-                                    egui::Id::new(&tooltip),
-                                    |ui| {
-                                        ui.label(&tooltip);
-                                    },
-                                );
-                            }
+                            let tooltip = if (machine.recipe.products.len() == 1
+                                && machine.recipe.name == machine.recipe.products[0].name)
+                                || machine.crafter.is_source_or_sink()
+                            {
+                                machine.crafter.name.clone()
+                            } else {
+                                format!("{}({})", machine.crafter.name, machine.recipe.name)
+                            };
+                            ui.item_icon(&machine.crafter.name, Some(&tooltip));
                             if show_names {
                                 ui.label(&machine.crafter.name);
                             }
@@ -209,17 +190,7 @@ impl MyApp {
                                         if is_first { "➡ " } else { "+ " },
                                         rf(stack.speed)
                                     ));
-                                    let r = ui.image(item_icon_url(&stack.item));
-                                    if r.contains_pointer() {
-                                        egui::show_tooltip(
-                                            ui.ctx(),
-                                            ui.layer_id(),
-                                            egui::Id::new(&stack.item),
-                                            |ui| {
-                                                ui.label(&stack.item);
-                                            },
-                                        );
-                                    }
+                                    ui.item_icon(&stack.item, Some(&stack.item));
                                     if show_names {
                                         ui.label(&stack.item);
                                     }
@@ -235,17 +206,9 @@ impl MyApp {
                             // }
                             ui.add_space(10.0);
                             if machine.crafter.is_source_or_sink() {
-                                let r = ui.button("Craft");
-                                if r.contains_pointer() {
-                                    egui::show_tooltip(
-                                        ui.ctx(),
-                                        ui.layer_id(),
-                                        egui::Id::new("Replace with a crafting machine"),
-                                        |ui| {
-                                            ui.label("Replace with a crafting machine");
-                                        },
-                                    );
-                                }
+                                let r = ui.with_tooltip("Replace with a crafting machine", |ui| {
+                                    ui.button("Craft")
+                                });
                                 if r.clicked() {
                                     if self.replace_with_craft_index == Some(i) {
                                         self.replace_with_craft_index = None;
@@ -357,16 +320,6 @@ impl MyApp {
                             } else {
                                 // not source or sink
                                 let r = ui.button("Edit");
-                                if r.contains_pointer() {
-                                    egui::show_tooltip(
-                                        ui.ctx(),
-                                        ui.layer_id(),
-                                        egui::Id::new("Edit"),
-                                        |ui| {
-                                            ui.label("Edit");
-                                        },
-                                    );
-                                }
                                 if r.clicked() {
                                     self.edit_machine_index = Some(i);
                                     self.machine_count_constraint = match editor_machine.snippet() {
@@ -404,16 +357,10 @@ impl MyApp {
                 if let Some(i) = self.edit_machine_index {
                     if i < self.editor.machines().len() {
                         ui.horizontal(|ui| {
-                            ui.heading(format!(
-                                "Edit machine: {}(",
+                            ui.rich_label(format!(
+                                "Edit machine: @[{}]*(@[{}]*)",
                                 self.editor.machines()[i].machine().crafter.name,
-                            ));
-                            ui.image(item_icon_url(
                                 &self.editor.machines()[i].machine().recipe.name,
-                            ));
-                            ui.heading(format!(
-                                "{})",
-                                self.editor.machines()[i].machine().recipe.name
                             ));
                         });
 
@@ -466,25 +413,12 @@ impl MyApp {
                                         .iter()
                                         .enumerate()
                                     {
-                                        if ui
-                                            .image(item_icon_url(&module.name))
-                                            .interact(Sense::click())
-                                            .clicked()
-                                        {
+                                        if ui.rich_label(format!("@[{}:]", module.name)).clicked() {
                                             index_to_remove = Some(ii);
                                         }
                                     }
                                     for _ in 0..(num_empty_module_slots) {
-                                        if ui.label("🚫").contains_pointer() {
-                                            egui::show_tooltip(
-                                                ui.ctx(),
-                                                ui.layer_id(),
-                                                egui::Id::new("Empty slot"),
-                                                |ui| {
-                                                    ui.label("Empty slot");
-                                                },
-                                            );
-                                        }
+                                        ui.with_tooltip("Empty module slot", |ui| ui.label("🚫"));
                                     }
                                     if !self.editor.machines()[i].machine().modules.is_empty() {
                                         ui.label("(Click on module to remove it)");
@@ -515,8 +449,7 @@ impl MyApp {
                                         }
                                         for module in allowed_modules {
                                             if ui
-                                                .image(item_icon_url(&module.name))
-                                                .interact(Sense::click())
+                                                .rich_label(format!("@[{}:]", module.name))
                                                 .clicked()
                                             {
                                                 let num_added = if ui.input(|i| i.modifiers.shift) {
@@ -590,9 +523,10 @@ impl MyApp {
                     let mut any_constraints = false;
                     for (item, speed) in self.editor.item_speed_constraints() {
                         ui.horizontal(|ui| {
-                            ui.image(icon_url("lock"));
-                            ui.image(item_icon_url(item));
-                            ui.label(format!("{}: {}/s", item, speed));
+                            ui.rich_label(format!(
+                                "@[$lock:Item speed constraint] @[{}]*: {}/s",
+                                item, speed
+                            ));
                             if ui.button("Edit").clicked() {
                                 self.item_speed_contraint_item = item.clone();
                                 self.old_item_speed_contraint_item = item.clone();
@@ -621,15 +555,12 @@ impl MyApp {
                         } = machine.snippet()
                         {
                             ui.horizontal(|ui| {
-                                ui.image(icon_url("lock"));
-                                ui.image(item_icon_url(&machine.machine().crafter.name));
-                                ui.label(format!(
-                                    "{} × {}(",
+                                ui.rich_label(&format!(
+                                    "@[$lock:Machine count constraint] {} × @[{}]*(@[{}]*)",
                                     count,
                                     machine.machine().crafter.name,
+                                    machine.machine().recipe.name,
                                 ));
-                                ui.image(item_icon_url(&machine.machine().recipe.name));
-                                ui.label(format!("{})", machine.machine().recipe.name));
                                 if ui.button("Edit").clicked() {
                                     self.edit_machine_index = Some(i);
                                     self.machine_count_constraint = count.to_string();
@@ -708,8 +639,7 @@ impl MyApp {
                     ui.horizontal(|ui| {
                         ui.label("Tip:");
                         for (speed, item) in &self.belt_speeds {
-                            ui.image(item_icon_url(item));
-                            ui.label(format!("= {speed}/s    "));
+                            ui.rich_label(format!("@[{item}:] = {speed}/s    "));
                         }
                     });
                 });
