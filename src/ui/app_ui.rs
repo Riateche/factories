@@ -163,7 +163,16 @@ impl MyApp {
                             let crafter_count = if machine.crafter.is_source_or_sink() {
                                 String::new()
                             } else {
-                                format!("{} × ", rf(machine.crafter_count))
+                                let lock = if let SnippetMachine::Crafter {
+                                    count_constraint: Some(constraint),
+                                    ..
+                                } = editor_machine.snippet()
+                                {
+                                    format!("@[$lock:Count constrained to {}]", rf(*constraint))
+                                } else {
+                                    String::new()
+                                };
+                                format!("{}{} × ", lock, rf(machine.crafter_count))
                             };
                             let tooltip = if (machine.recipe.products.len() == 1
                                 && machine.recipe.name == machine.recipe.products[0].name)
@@ -407,6 +416,35 @@ impl MyApp {
                         });
 
                         egui::Frame::group(ui.style()).show(ui, |ui| {
+                            let crafters = self
+                                .editor
+                                .info()
+                                .category_to_crafter
+                                .get(&self.editor.machines()[i].machine().recipe.category)
+                                .cloned()
+                                .unwrap_or_default();
+                            if crafters.len() > 1 {
+                                ui.horizontal(|ui| {
+                                    ui.label("Change crafter:");
+                                    let mut text =
+                                        self.editor.machines()[i].machine().crafter.name.clone();
+                                    ComboBox::new(("change_crafter", self.generation), "")
+                                        .selected_text(
+                                            &self.editor.machines()[i].machine().crafter.name,
+                                        )
+                                        .show_ui(ui, |ui| {
+                                            for item in crafters {
+                                                ui.selectable_value(&mut text, item.clone(), item);
+                                            }
+                                        });
+                                    if text != self.editor.machines()[i].machine().crafter.name {
+                                        self.saved = false;
+                                        self.alerts.clear();
+                                        self.editor.set_crafter(i, &text).or_warn();
+                                        self.after_machines_changed();
+                                    }
+                                });
+                            }
                             ui.horizontal(|ui| {
                                 let label = ui.label("Set machine count constraint:");
                                 let text_response =
@@ -509,15 +547,17 @@ impl MyApp {
                                                 }
                                             }
                                         }
+                                        ui.label("(Hold Shift to fill)");
                                         if added {
                                             self.after_machines_changed();
                                         }
                                     });
                                 }
                                 ui.horizontal(|ui| {
-                                    let label = ui.label(
-                                        "Beacons with speed modules connected to each machine: ",
-                                    );
+                                    let label = ui.rich_label(format!(
+                                        "Number of @[beacon:](2@[{}:]) per machine:",
+                                        &self.default_speed_module.name
+                                    ));
                                     let text_response = TextEdit::singleline(&mut self.num_beacons)
                                         .desired_width(50.0)
                                         .ui(ui)

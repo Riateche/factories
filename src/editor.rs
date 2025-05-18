@@ -210,6 +210,53 @@ impl Editor {
         Ok(())
     }
 
+    pub fn set_crafter(&mut self, index: usize, new_crafter_name: &str) -> anyhow::Result<()> {
+        let machine = self
+            .machines
+            .get_mut(index)
+            .context("invalid machine index")?;
+        match &mut machine.snippet {
+            SnippetMachine::Source { .. } | SnippetMachine::Sink { .. } => {
+                bail!("cannot set crafter for source or sink");
+            }
+            SnippetMachine::Crafter {
+                crafter,
+                modules,
+                recipe,
+                ..
+            } => {
+                let crafters = self
+                    .info
+                    .category_to_crafter
+                    .get(&machine.machine.recipe.category)
+                    .context("unknown recipe category")?;
+                if !crafters.iter().any(|s| s == new_crafter_name) {
+                    bail!(
+                        "crafter {:?} not allowed for recipe {:?}",
+                        new_crafter_name,
+                        recipe
+                    );
+                }
+
+                let new_crafter = self
+                    .info
+                    .crafters
+                    .get(new_crafter_name)
+                    .with_context(|| format!("crafter not found: {crafter:?}"))?
+                    .clone();
+                modules.truncate(new_crafter.module_inventory_size as usize);
+                *crafter = new_crafter_name.into();
+                machine
+                    .machine
+                    .modules
+                    .truncate(new_crafter.module_inventory_size as usize);
+                machine.machine.crafter = new_crafter;
+            }
+        }
+        self.after_machines_changed();
+        Ok(())
+    }
+
     pub fn description(&self) -> String {
         let mut out = String::new();
         let inputs = self
