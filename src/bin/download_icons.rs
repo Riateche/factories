@@ -76,7 +76,7 @@ fn main() -> anyhow::Result<()> {
         if blacklist.contains(&recipe.as_str()) {
             continue;
         }
-        let file_path = format!("icons/{recipe}.png");
+        let file_path = format!("icons/factorio/{recipe}.png");
         if !Path::new(&file_path).exists() {
             println!("downloading {recipe}");
             let mut name = recipe.replace("-", "_");

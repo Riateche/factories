@@ -20,6 +20,13 @@ use {
     url::Url,
 };
 
+pub fn item_icon_url(name: &str) -> String {
+    let path = env::current_dir()
+        .unwrap()
+        .join(format!("icons/factorio/{name}.png"));
+    Url::from_file_path(&path).unwrap().to_string()
+}
+
 pub fn icon_url(name: &str) -> String {
     let path = env::current_dir()
         .unwrap()
@@ -297,7 +304,7 @@ impl Widget for &RecipeMenuItem {
     fn ui(self, ui: &mut eframe::egui::Ui) -> eframe::egui::Response {
         let mut r = None;
         let out_r = ui.horizontal(|ui| {
-            ui.image(icon_url(&self.recipe));
+            ui.image(item_icon_url(&self.recipe));
             let mut l = Layout::left_to_right(Align::Center);
             l.main_justify = true;
             l.main_align = Align::LEFT;

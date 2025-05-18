@@ -1,6 +1,6 @@
 use {
     super::{
-        app::{icon_url, recipe_menu_items, MyApp, RecipeMenuItem},
+        app::{icon_url, item_icon_url, recipe_menu_items, MyApp, RecipeMenuItem},
         drop_down::DropDownBox,
     },
     crate::{rf, snippet::SnippetMachine, ResultExtOrWarn},
@@ -152,7 +152,7 @@ impl MyApp {
                                         if is_first { "" } else { "+ " },
                                         rf(-stack.speed)
                                     ));
-                                    let r = ui.image(icon_url(&stack.item));
+                                    let r = ui.image(item_icon_url(&stack.item));
                                     if r.contains_pointer() {
                                         egui::show_tooltip(
                                             ui.ctx(),
@@ -179,7 +179,7 @@ impl MyApp {
                                 if is_first { "" } else { "➡ " },
                                 crafter_count,
                             ));
-                            let r = ui.image(icon_url(&machine.crafter.name));
+                            let r = ui.image(item_icon_url(&machine.crafter.name));
                             if r.contains_pointer() {
                                 let tooltip = if (machine.recipe.products.len() == 1
                                     && machine.recipe.name == machine.recipe.products[0].name)
@@ -209,7 +209,7 @@ impl MyApp {
                                         if is_first { "➡ " } else { "+ " },
                                         rf(stack.speed)
                                     ));
-                                    let r = ui.image(icon_url(&stack.item));
+                                    let r = ui.image(item_icon_url(&stack.item));
                                     if r.contains_pointer() {
                                         egui::show_tooltip(
                                             ui.ctx(),
@@ -408,7 +408,9 @@ impl MyApp {
                                 "Edit machine: {}(",
                                 self.editor.machines()[i].machine().crafter.name,
                             ));
-                            ui.image(icon_url(&self.editor.machines()[i].machine().recipe.name));
+                            ui.image(item_icon_url(
+                                &self.editor.machines()[i].machine().recipe.name,
+                            ));
                             ui.heading(format!(
                                 "{})",
                                 self.editor.machines()[i].machine().recipe.name
@@ -465,7 +467,7 @@ impl MyApp {
                                         .enumerate()
                                     {
                                         if ui
-                                            .image(icon_url(&module.name))
+                                            .image(item_icon_url(&module.name))
                                             .interact(Sense::click())
                                             .clicked()
                                         {
@@ -513,7 +515,7 @@ impl MyApp {
                                         }
                                         for module in allowed_modules {
                                             if ui
-                                                .image(icon_url(&module.name))
+                                                .image(item_icon_url(&module.name))
                                                 .interact(Sense::click())
                                                 .clicked()
                                             {
@@ -588,7 +590,9 @@ impl MyApp {
                     let mut any_constraints = false;
                     for (item, speed) in self.editor.item_speed_constraints() {
                         ui.horizontal(|ui| {
-                            ui.label(format!("• {}: {}/s", item, speed));
+                            ui.image(icon_url("lock"));
+                            ui.image(item_icon_url(item));
+                            ui.label(format!("{}: {}/s", item, speed));
                             if ui.button("Edit").clicked() {
                                 self.item_speed_contraint_item = item.clone();
                                 self.old_item_speed_contraint_item = item.clone();
@@ -617,12 +621,15 @@ impl MyApp {
                         } = machine.snippet()
                         {
                             ui.horizontal(|ui| {
+                                ui.image(icon_url("lock"));
+                                ui.image(item_icon_url(&machine.machine().crafter.name));
                                 ui.label(format!(
-                                    "• {} × {}({})",
+                                    "{} × {}(",
                                     count,
                                     machine.machine().crafter.name,
-                                    machine.machine().recipe.name
                                 ));
+                                ui.image(item_icon_url(&machine.machine().recipe.name));
+                                ui.label(format!("{})", machine.machine().recipe.name));
                                 if ui.button("Edit").clicked() {
                                     self.edit_machine_index = Some(i);
                                     self.machine_count_constraint = count.to_string();
@@ -701,7 +708,7 @@ impl MyApp {
                     ui.horizontal(|ui| {
                         ui.label("Tip:");
                         for (speed, item) in &self.belt_speeds {
-                            ui.image(icon_url(item));
+                            ui.image(item_icon_url(item));
                             ui.label(format!("= {speed}/s    "));
                         }
                     });

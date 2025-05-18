@@ -32,7 +32,9 @@ pub fn run() -> anyhow::Result<()> {
     let options = eframe::NativeOptions {
         viewport: ViewportBuilder::default()
             .with_inner_size([1024.0, 768.0])
-            .with_icon(icon_data::from_png_bytes(include_bytes!("../../icon.png"))?),
+            .with_icon(icon_data::from_png_bytes(include_bytes!(
+                "../../icons/factories.png"
+            ))?),
         ..Default::default()
     };
 
