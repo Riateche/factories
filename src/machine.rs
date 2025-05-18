@@ -37,7 +37,7 @@ pub enum ModuleType {
     Productivity,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Module {
     pub name: String,
     pub type_: ModuleType,

@@ -4,11 +4,14 @@ use {
         drop_down::DropDownBox,
         ui_ext::UiExt,
     },
-    crate::{rf, snippet::SnippetMachine, ResultExtOrWarn},
+    crate::{machine::Module, rf, snippet::SnippetMachine, ResultExtOrWarn},
     eframe::egui::{self, Color32, ComboBox, Key},
     egui::{Response, ScrollArea, TextEdit, Ui, Widget},
     itertools::Itertools,
-    std::time::{Duration, Instant},
+    std::{
+        collections::BTreeMap,
+        time::{Duration, Instant},
+    },
 };
 
 impl MyApp {
@@ -134,7 +137,7 @@ impl MyApp {
                 });
 
                 ui.heading("Machines");
-                let show_names = ui.input(|i| i.modifiers.alt);
+                //let show_names = ui.input(|i| i.modifiers.alt);
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     if self.editor.machines().is_empty() {
                         ui.label("No machines.");
@@ -148,28 +151,20 @@ impl MyApp {
                             let mut is_first = true;
                             for stack in &item_speeds {
                                 if stack.speed < 0.0 {
-                                    ui.label(format!(
-                                        "{}{}/s",
+                                    ui.rich_label(format!(
+                                        "{}{}/s @[{}:]",
                                         if is_first { "" } else { "+ " },
-                                        rf(-stack.speed)
+                                        rf(-stack.speed),
+                                        stack.item,
                                     ));
-                                    ui.item_icon(&stack.item, Some(&stack.item));
-                                    if show_names {
-                                        ui.label(&stack.item);
-                                    }
                                     is_first = false;
                                 }
                             }
                             let crafter_count = if machine.crafter.is_source_or_sink() {
                                 String::new()
                             } else {
-                                format!("{} ×", rf(machine.crafter_count))
+                                format!("{} × ", rf(machine.crafter_count))
                             };
-                            ui.label(format!(
-                                "{}{}",
-                                if is_first { "" } else { "➡ " },
-                                crafter_count,
-                            ));
                             let tooltip = if (machine.recipe.products.len() == 1
                                 && machine.recipe.name == machine.recipe.products[0].name)
                                 || machine.crafter.is_source_or_sink()
@@ -178,22 +173,69 @@ impl MyApp {
                             } else {
                                 format!("{}({})", machine.crafter.name, machine.recipe.name)
                             };
-                            ui.item_icon(&machine.crafter.name, Some(&tooltip));
-                            if show_names {
-                                ui.label(&machine.crafter.name);
-                            }
+                            let modules_text = if machine.modules.is_empty()
+                                && machine.beacons.is_empty()
+                            {
+                                String::new()
+                            } else {
+                                let beacon_text = if machine.beacons.is_empty() {
+                                    String::new()
+                                } else {
+                                    if machine.beacons.iter().all_equal() {
+                                        let modules = module_counts(&machine.beacons[0])
+                                            .into_iter()
+                                            .map(|(name, count)| format!("{count} × {name}"))
+                                            .join(",");
+                                        format!("{} × beacon({})", machine.beacons.len(), modules)
+                                    } else {
+                                        machine
+                                            .beacons
+                                            .iter()
+                                            .map(|beacon| {
+                                                let modules = module_counts(beacon)
+                                                    .into_iter()
+                                                    .map(|(name, count)| {
+                                                        format!("{count} × {name}")
+                                                    })
+                                                    .join(",");
+                                                format!("beacon({})", modules)
+                                            })
+                                            .join("\n")
+                                    }
+                                };
+                                let beacon_markup = if machine.beacons.is_empty() {
+                                    None
+                                } else {
+                                    Some(format!(
+                                        "{}@[beacon:{}]",
+                                        machine.beacons.len(),
+                                        beacon_text
+                                    ))
+                                };
+                                let text = module_counts(&machine.modules)
+                                    .into_iter()
+                                    .map(|(name, count)| format!("{count}@[{name}:]"))
+                                    .chain(beacon_markup)
+                                    .join(",");
+                                format!("[{text}]")
+                            };
+                            ui.rich_label(format!(
+                                "{}{}@[{}:{}]{}",
+                                if is_first { "" } else { "➡ " },
+                                crafter_count,
+                                machine.crafter.name,
+                                tooltip,
+                                modules_text
+                            ));
                             is_first = true;
                             for stack in &item_speeds {
                                 if stack.speed > 0.0 {
-                                    ui.label(format!(
-                                        "{}{}/s",
+                                    ui.rich_label(format!(
+                                        "{}{}/s @[{}:]",
                                         if is_first { "➡ " } else { "+ " },
-                                        rf(stack.speed)
+                                        rf(stack.speed),
+                                        stack.item,
                                     ));
-                                    ui.item_icon(&stack.item, Some(&stack.item));
-                                    if show_names {
-                                        ui.label(&stack.item);
-                                    }
                                     is_first = false;
                                 }
                             }
@@ -706,4 +748,12 @@ impl eframe::App for MyApp {
             self.show(ui);
         });
     }
+}
+
+fn module_counts(modules: &[Module]) -> BTreeMap<&str, usize> {
+    let mut module_counts = BTreeMap::<_, usize>::new();
+    for module in modules {
+        *module_counts.entry(module.name.as_str()).or_default() += 1;
+    }
+    module_counts
 }
