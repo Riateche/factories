@@ -306,11 +306,11 @@ impl Editor {
         speed: Option<f64>,
         replace_all: bool,
     ) -> anyhow::Result<()> {
+        if replace_all {
+            self.clear_all_constraints_internal();
+        }
         if !self.info.all_items.contains(item) {
             bail!("unknown item: {item:?}");
-        }
-        if replace_all {
-            self.item_speed_constraints.clear();
         }
         if let Some(speed) = speed {
             self.item_speed_constraints.insert(item.into(), speed);
@@ -325,7 +325,11 @@ impl Editor {
         &mut self,
         index: usize,
         count: Option<f64>,
+        replace_all: bool,
     ) -> anyhow::Result<()> {
+        if replace_all {
+            self.clear_all_constraints_internal();
+        }
         let machine = self
             .machines
             .get_mut(index)
@@ -343,6 +347,21 @@ impl Editor {
         }
         self.solve();
         Ok(())
+    }
+
+    // Clear without solving
+    fn clear_all_constraints_internal(&mut self) {
+        self.item_speed_constraints.clear();
+        for machine in &mut self.machines {
+            match &mut machine.snippet {
+                SnippetMachine::Source { .. } | SnippetMachine::Sink { .. } => {}
+                SnippetMachine::Crafter {
+                    count_constraint, ..
+                } => {
+                    *count_constraint = None;
+                }
+            }
+        }
     }
 
     pub fn add_module(&mut self, machine_index: usize, module: &str) -> anyhow::Result<()> {

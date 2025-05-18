@@ -5,7 +5,7 @@ use {
         ui_ext::UiExt,
     },
     crate::{machine::Module, rf, snippet::SnippetMachine, ResultExtOrWarn},
-    eframe::egui::{self, Color32, ComboBox, Key},
+    eframe::egui::{self, Color32, ComboBox, Frame, Key},
     egui::{Response, ScrollArea, TextEdit, Ui, Widget},
     itertools::Itertools,
     std::{
@@ -149,17 +149,21 @@ impl MyApp {
                         ui.horizontal(|ui| {
                             let item_speeds = machine.item_speeds().collect_vec();
                             let mut is_first = true;
-                            for stack in &item_speeds {
-                                if stack.speed < 0.0 {
-                                    ui.rich_label(format!(
-                                        "{}{}/s @[{}:]",
-                                        if is_first { "" } else { "+ " },
-                                        rf(-stack.speed),
-                                        stack.item,
-                                    ));
-                                    is_first = false;
-                                }
-                            }
+                            Frame::new()
+                                .fill(Color32::from_rgb(255, 230, 230))
+                                .show(ui, |ui| {
+                                    for stack in &item_speeds {
+                                        if stack.speed < 0.0 {
+                                            ui.rich_label(format!(
+                                                "{}{}/s @[{}:]",
+                                                if is_first { "" } else { "+ " },
+                                                rf(-stack.speed),
+                                                stack.item,
+                                            ));
+                                            is_first = false;
+                                        }
+                                    }
+                                });
                             let crafter_count = if machine.crafter.is_source_or_sink() {
                                 String::new()
                             } else {
@@ -237,17 +241,21 @@ impl MyApp {
                                 modules_text
                             ));
                             is_first = true;
-                            for stack in &item_speeds {
-                                if stack.speed > 0.0 {
-                                    ui.rich_label(format!(
-                                        "{}{}/s @[{}:]",
-                                        if is_first { "➡ " } else { "+ " },
-                                        rf(stack.speed),
-                                        stack.item,
-                                    ));
-                                    is_first = false;
-                                }
-                            }
+                            Frame::new()
+                                .fill(Color32::from_rgb(230, 255, 230))
+                                .show(ui, |ui| {
+                                    for stack in &item_speeds {
+                                        if stack.speed > 0.0 {
+                                            ui.rich_label(format!(
+                                                "{}{}/s @[{}:]",
+                                                if is_first { "➡ " } else { "+ " },
+                                                rf(stack.speed),
+                                                stack.item,
+                                            ));
+                                            is_first = false;
+                                        }
+                                    }
+                                });
 
                             // if ui
                             //     .selectable_label(self.selected_machine == i, machine.io_text())
@@ -456,7 +464,10 @@ impl MyApp {
                                     text_response.request_focus();
                                     self.focus_machine_constraint_input = false;
                                 }
-                                if ui.button("Add").clicked()
+                                let set = ui.button("Set").clicked();
+                                let replace_all = ui.button("Replace all").clicked();
+                                if set
+                                    || replace_all
                                     || (text_response.lost_focus()
                                         && ui.input(|i| i.key_pressed(Key::Enter)))
                                 {
@@ -465,7 +476,11 @@ impl MyApp {
                                         self.saved = false;
                                         self.alerts.clear();
                                         self.editor
-                                            .set_machine_count_constraint(i, Some(count))
+                                            .set_machine_count_constraint(
+                                                i,
+                                                Some(count),
+                                                replace_all,
+                                            )
                                             .or_warn();
                                         self.after_constraint_changed();
                                     }
@@ -660,7 +675,7 @@ impl MyApp {
                         self.saved = false;
                         self.alerts.clear();
                         self.editor
-                            .set_machine_count_constraint(index, None)
+                            .set_machine_count_constraint(index, None, false)
                             .or_warn();
                         self.after_constraint_changed();
                     }

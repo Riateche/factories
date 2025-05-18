@@ -1,4 +1,4 @@
-use eframe::egui::{self, Response, Sense, Ui};
+use eframe::egui::{self, Color32, Response, Sense, Ui};
 use regex::Regex;
 
 use super::app::icon_url;
@@ -46,6 +46,7 @@ impl UiExt for Ui {
         let re = Regex::new(r"@\[([^:\]]*)(:([^:\]]*)){0,1}\](\*){0,1}").unwrap();
         let mut current = 0;
         ui.scope(|ui| {
+            ui.style_mut().visuals.panel_fill = Color32::RED;
             let mut r = ui.response();
             ui.spacing_mut().item_spacing.x = 0.;
             for capture in re.captures_iter(&text) {
