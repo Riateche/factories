@@ -1,25 +1,14 @@
 use {
     super::{
-        app::{recipe_menu_items, MyApp},
+        app::{icon_url, recipe_menu_items, MyApp, RecipeMenuItem},
         drop_down::DropDownBox,
     },
     crate::{rf, snippet::SnippetMachine, ResultExtOrWarn},
     eframe::egui::{self, Color32, ComboBox, Key, Sense},
     egui::{Response, ScrollArea, TextEdit, Ui, Widget},
     itertools::Itertools,
-    std::{
-        env,
-        time::{Duration, Instant},
-    },
-    url::Url,
+    std::time::{Duration, Instant},
 };
-
-fn icon_url(name: &str) -> String {
-    let path = env::current_dir()
-        .unwrap()
-        .join(format!("icons/{name}.png"));
-    Url::from_file_path(&path).unwrap().to_string()
-}
 
 impl MyApp {
     pub fn show(&mut self, ui: &mut Ui) -> Response {
@@ -45,17 +34,6 @@ impl MyApp {
                                     &self.all_recipe_menu_items,
                                     "recipe",
                                     &mut self.recipe_search_text,
-                                    |ui, text| {
-                                        let mut r = None;
-                                        let out_r = ui.horizontal(|ui| {
-                                            let recipe = text
-                                                .split_once(" @ ")
-                                                .map_or(text, |parts| parts.0);
-                                            ui.image(icon_url(&recipe));
-                                            r = Some(ui.selectable_label(false, text));
-                                        });
-                                        r.unwrap_or(out_r.response)
-                                    },
                                 )
                                 .show(ui);
                                 if self.auto_focus && ui.memory(|m| m.focused()).is_none() {
@@ -63,8 +41,11 @@ impl MyApp {
                                     self.auto_focus = false;
                                 }
 
-                                if drop_down_response.committed {
-                                    self.add_recipe(&self.recipe_search_text.clone()).or_warn();
+                                if let Some(item) = drop_down_response.option_selected.cloned() {
+                                    self.add_crafter(item.recipe(), item.crafter()).or_warn();
+                                } else if drop_down_response.enter_pressed {
+                                    self.add_crafter(&self.recipe_search_text.clone(), None)
+                                        .or_warn();
                                 }
                             });
                         });
@@ -150,7 +131,7 @@ impl MyApp {
                         ui.label("No machines.");
                     }
                     let mut index_to_remove = None;
-                    let mut recipe_to_add = None;
+                    let mut recipe_to_add: Option<(String, Option<String>)> = None;
                     for (i, editor_machine) in self.editor.machines().iter().enumerate() {
                         let machine = editor_machine.machine();
                         ui.horizontal(|ui| {
@@ -316,48 +297,52 @@ impl MyApp {
                                         self.replace_with_craft_options = menu_items_and_hints
                                             .into_iter()
                                             .map(|(menu_item, hint)| {
+                                                let menu_text = menu_item.text();
                                                 let text = if show_hints {
                                                     if machine.crafter.is_source() {
-                                                        format!("{hint}{menu_item}")
+                                                        format!("{hint}{menu_text}")
                                                     } else {
-                                                        format!("{menu_item}{hint}")
+                                                        format!("{menu_text}{hint}")
                                                     }
                                                 } else {
-                                                    menu_item.clone()
+                                                    menu_text.to_string()
                                                 };
                                                 (menu_item, text)
                                             })
                                             .collect();
 
-                                        //... set replace_with_craft_options
                                         self.generation += 1;
                                         if self.replace_with_craft_options.len() == 1 {
                                             self.replace_with_craft_index = None;
-                                            let recipe =
-                                                self.replace_with_craft_options.remove(0).0;
-                                            recipe_to_add = Some(recipe.clone());
+                                            let item = self.replace_with_craft_options.remove(0).0;
+                                            recipe_to_add = Some((
+                                                item.recipe().to_string(),
+                                                item.crafter().map(|s| s.to_string()),
+                                            ));
                                         } else {
                                             self.replace_with_craft_index = Some(i);
                                         }
                                     }
                                 }
                                 if self.replace_with_craft_index == Some(i) {
-                                    let mut text = String::new();
+                                    let mut value: Option<&RecipeMenuItem> = None;
                                     ComboBox::new(("replace_source_item", self.generation), "")
-                                        .selected_text(&text)
                                         .show_ui(ui, |ui| {
                                             for (menu_item, item_text) in
                                                 &self.replace_with_craft_options
                                             {
                                                 ui.selectable_value(
-                                                    &mut text,
-                                                    menu_item.into(),
+                                                    &mut value,
+                                                    Some(menu_item),
                                                     item_text,
                                                 );
                                             }
                                         });
-                                    if !text.is_empty() {
-                                        recipe_to_add = Some(text);
+                                    if let Some(value) = value {
+                                        recipe_to_add = Some((
+                                            value.recipe().to_string(),
+                                            value.crafter().map(|s| s.to_string()),
+                                        ));
                                         self.replace_with_craft_index = None;
                                     }
                                 }
@@ -403,8 +388,8 @@ impl MyApp {
                         self.editor.remove_machine(i).or_warn();
                         self.after_machines_changed();
                     }
-                    if let Some(name) = recipe_to_add {
-                        self.add_recipe(&name).or_warn();
+                    if let Some((recipe, crafter)) = recipe_to_add {
+                        self.add_crafter(&recipe, crafter.as_deref()).or_warn();
                     }
                 });
 

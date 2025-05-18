@@ -1,13 +1,17 @@
 use {
+    super::drop_down::DropDownOption,
     crate::{
         editor::Editor, flowchart, game_data::Recipe, info::Info, machine::Module, ResultExtOrWarn,
     },
     anyhow::{format_err, Context},
     arboard::Clipboard,
+    eframe::egui::Widget,
     itertools::Itertools,
     ordered_float::OrderedFloat,
     std::{
+        borrow::Cow,
         collections::{BTreeSet, VecDeque},
+        env,
         ffi::OsStr,
         path::Path,
         sync::mpsc::Receiver,
@@ -16,11 +20,18 @@ use {
     url::Url,
 };
 
+pub fn icon_url(name: &str) -> String {
+    let path = env::current_dir()
+        .unwrap()
+        .join(format!("icons/{name}.png"));
+    Url::from_file_path(&path).unwrap().to_string()
+}
+
 pub struct MyApp {
     pub msg_receiver: Receiver<String>,
 
     // Static data
-    pub all_recipe_menu_items: Vec<String>,
+    pub all_recipe_menu_items: Vec<RecipeMenuItem>,
     pub belt_speeds: Vec<(f64, String)>,
     pub default_speed_module: Module,
     pub default_productivity_module: Module,
@@ -42,7 +53,7 @@ pub struct MyApp {
 
     // Machines view
     // (recipe_name_with_machine, display_text)
-    pub replace_with_craft_options: Vec<(String, String)>,
+    pub replace_with_craft_options: Vec<(RecipeMenuItem, String)>,
     pub replace_with_craft_index: Option<usize>,
 
     // Item speed constraints
@@ -154,14 +165,10 @@ impl MyApp {
         Ok(app)
     }
 
-    pub fn add_recipe(&mut self, text: &str) -> anyhow::Result<()> {
+    pub fn add_crafter(&mut self, recipe_name: &str, crafter: Option<&str>) -> anyhow::Result<()> {
         self.saved = false;
         self.alerts.clear();
-        if let Some((recipe, machine)) = text.split_once(" @ ") {
-            self.editor.add_crafter(recipe, Some(machine))?;
-        } else {
-            self.editor.add_crafter(text, None)?;
-        };
+        self.editor.add_crafter(recipe_name, crafter)?;
         self.recipe_search_text.clear();
         self.after_machines_changed();
         Ok(())
@@ -251,7 +258,49 @@ impl MyApp {
     }
 }
 
-pub fn recipe_menu_items(info: &Info, recipe: &Recipe) -> Vec<String> {
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RecipeMenuItem {
+    recipe: String,
+    crafter: Option<String>,
+    text: String,
+}
+
+impl RecipeMenuItem {
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    pub fn recipe(&self) -> &str {
+        &self.recipe
+    }
+
+    pub fn crafter(&self) -> Option<&str> {
+        self.crafter.as_deref()
+    }
+}
+
+impl Widget for &RecipeMenuItem {
+    fn ui(self, ui: &mut eframe::egui::Ui) -> eframe::egui::Response {
+        let mut r = None;
+        let out_r = ui.horizontal(|ui| {
+            ui.image(icon_url(&self.recipe));
+            r = Some(ui.selectable_label(false, &self.text));
+        });
+        r.unwrap_or(out_r.response)
+    }
+}
+
+impl DropDownOption for &RecipeMenuItem {
+    fn search_text(&self) -> std::borrow::Cow<str> {
+        Cow::Borrowed(&self.recipe)
+    }
+
+    fn insert_text(&self) -> std::borrow::Cow<str> {
+        Cow::Borrowed(&self.text)
+    }
+}
+
+pub fn recipe_menu_items(info: &Info, recipe: &Recipe) -> Vec<RecipeMenuItem> {
     // let recipe_text = if recipe.products.len() != 1 || recipe.products[0].name != recipe.name {
     //     format!(
     //         "{} ({} ➡ {})",
@@ -269,11 +318,19 @@ pub fn recipe_menu_items(info: &Info, recipe: &Recipe) -> Vec<String> {
         .expect("missing item in category_to_crafter");
 
     if info.auto_select_crafter(crafters).is_some() {
-        vec![recipe.name.clone()]
+        vec![RecipeMenuItem {
+            recipe: recipe.name.clone(),
+            crafter: None,
+            text: recipe.name.clone(),
+        }]
     } else {
         crafters
             .iter()
-            .map(move |crafter| format!("{} @ {}", &recipe.name, crafter))
+            .map(move |crafter| RecipeMenuItem {
+                recipe: recipe.name.clone(),
+                crafter: Some(crafter.clone()),
+                text: format!("{} @ {}", &recipe.name, crafter),
+            })
             .collect()
     }
 }

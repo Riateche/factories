@@ -4,18 +4,17 @@ use {
         text::{CCursor, CCursorRange},
         Id, Response, ScrollArea, TextEdit, Ui, Widget, WidgetText,
     },
-    std::hash::Hash,
+    std::{borrow::Cow, hash::Hash},
 };
 
-pub struct DropDownBox<
-    'a,
-    F: FnMut(&mut Ui, &str) -> Response,
-    V: AsRef<str>,
-    I: Iterator<Item = V>,
-> {
+pub trait DropDownOption: Widget {
+    fn search_text(&self) -> Cow<str>;
+    fn insert_text(&self) -> Cow<str>;
+}
+
+pub struct DropDownBox<'a, I> {
     buf: &'a mut String,
     popup_id: Id,
-    display: F,
     it: Option<I>,
     hint_text: WidgetText,
     filter_by_input: bool,
@@ -24,19 +23,19 @@ pub struct DropDownBox<
     max_height: Option<f32>,
 }
 
-impl<'a, F: FnMut(&mut Ui, &str) -> Response, V: AsRef<str>, I: Iterator<Item = V>>
-    DropDownBox<'a, F, V, I>
+impl<'a, 'b, V, I> DropDownBox<'a, I>
+where
+    I: Iterator<Item = &'b V>,
+    &'b V: DropDownOption + 'b,
 {
     pub fn from_iter(
         it: impl IntoIterator<IntoIter = I>,
         id_source: impl Hash,
         buf: &'a mut String,
-        display: F,
     ) -> Self {
         Self {
             popup_id: Id::new(id_source),
             it: Some(it.into_iter()),
-            display,
             buf,
             hint_text: WidgetText::default(),
             filter_by_input: true,
@@ -76,12 +75,12 @@ impl<'a, F: FnMut(&mut Ui, &str) -> Response, V: AsRef<str>, I: Iterator<Item = 
         self
     }
 
-    pub fn show(&mut self, ui: &mut Ui) -> DropDownBoxOutput {
+    pub fn show(&mut self, ui: &mut Ui) -> DropDownBoxOutput<'b, V> {
         let mut edit = TextEdit::singleline(self.buf).hint_text(self.hint_text.clone());
         if let Some(dw) = self.desired_width {
             edit = edit.desired_width(dw);
         }
-        let mut committed = false;
+        let mut option_selected = None;
         let mut edit_output = edit.show(ui);
         let mut r = edit_output.response;
         if r.has_focus() {
@@ -101,9 +100,7 @@ impl<'a, F: FnMut(&mut Ui, &str) -> Response, V: AsRef<str>, I: Iterator<Item = 
         let request_popup_focus =
             r.has_focus() && ui.input(|i| i.key_pressed(egui::Key::ArrowDown));
 
-        if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-            committed = true;
-        }
+        let enter_pressed = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
 
         let mut changed = false;
         egui::popup_below_widget(
@@ -121,24 +118,25 @@ impl<'a, F: FnMut(&mut Ui, &str) -> Response, V: AsRef<str>, I: Iterator<Item = 
                     .max_height(500.)
                     .min_scrolled_height(500.)
                     .show(ui, |ui| {
-                        for var in self.it.take().unwrap() {
-                            let text = var.as_ref();
+                        for option in self.it.take().unwrap() {
+                            let search_text = option.search_text();
                             if self.filter_by_input
                                 && !self.buf.is_empty()
-                                && !text.to_lowercase().contains(&self.buf.to_lowercase())
+                                && !search_text
+                                    .to_lowercase()
+                                    .contains(&self.buf.to_lowercase())
                             {
                                 continue;
                             }
 
-                            let response = (self.display)(ui, text);
+                            let response = option.ui(ui);
                             if row == 0 && request_popup_focus {
                                 response.request_focus();
                             }
                             if response.clicked() {
-                                *self.buf = text.to_owned();
+                                *self.buf = option.insert_text().into();
                                 changed = true;
-                                committed = true;
-
+                                option_selected = Some(option);
                                 ui.memory_mut(|m| m.close_popup());
                             }
                             row += 1;
@@ -153,18 +151,22 @@ impl<'a, F: FnMut(&mut Ui, &str) -> Response, V: AsRef<str>, I: Iterator<Item = 
 
         DropDownBoxOutput {
             response: r,
-            committed,
+            option_selected,
+            enter_pressed,
         }
     }
 }
 
-pub struct DropDownBoxOutput {
+pub struct DropDownBoxOutput<'a, V> {
     pub response: Response,
-    pub committed: bool,
+    pub enter_pressed: bool,
+    pub option_selected: Option<&'a V>,
 }
 
-impl<F: FnMut(&mut Ui, &str) -> Response, V: AsRef<str>, I: Iterator<Item = V>> Widget
-    for DropDownBox<'_, F, V, I>
+impl<'a, 'b, V, I> Widget for DropDownBox<'a, I>
+where
+    I: Iterator<Item = &'b V>,
+    &'b V: DropDownOption + 'b,
 {
     fn ui(mut self, ui: &mut Ui) -> Response {
         self.show(ui).response
