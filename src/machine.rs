@@ -8,7 +8,7 @@ use {
     serde::{Deserialize, Serialize},
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Crafter {
     pub name: CrafterName,
     pub energy_usage: f64,
@@ -44,12 +44,18 @@ pub struct Module {
     pub productivity_delta_percent: f64,
 }
 
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Beacon {
+    pub modules: Vec<Module>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Machine {
     pub crafter: Crafter,
     pub crafter_count: f64,
     pub modules: Vec<Module>,
-    pub beacons: Vec<Vec<Module>>,
+    pub beacons: Vec<Beacon>,
     pub recipe: Recipe,
 }
 
@@ -145,7 +151,7 @@ impl Machine {
         let beacon_speed_percents: f64 = self
             .beacons
             .iter()
-            .flatten()
+            .flat_map(|b| &b.modules)
             .map(|module| module.speed_delta_percent)
             .sum();
         let speed_percents =
@@ -175,7 +181,7 @@ impl Machine {
         let beacon_prod_percents: f64 = self
             .beacons
             .iter()
-            .flatten()
+            .flat_map(|b| &b.modules)
             .map(|module| module.productivity_delta_percent)
             .sum();
         let prod_percents = 100.

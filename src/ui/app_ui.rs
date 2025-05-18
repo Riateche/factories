@@ -5,10 +5,10 @@ use {
         ui_ext::UiExt,
     },
     crate::{
-        machine::Module,
+        machine::{Beacon, Module},
         primitives::{CrafterName, RecipeName, Speed},
         rf,
-        snippet::SnippetMachine,
+        snippet::{CrafterSnippet, MachineSnippet},
         ResultExtOrWarn,
     },
     eframe::egui::{self, Color32, ComboBox, Frame, Key},
@@ -176,10 +176,10 @@ impl MyApp {
                             let crafter_count = if machine.crafter.is_source_or_sink() {
                                 String::new()
                             } else {
-                                let lock = if let SnippetMachine::Crafter {
+                                let lock = if let MachineSnippet::Crafter(CrafterSnippet {
                                     count_constraint: Some(constraint),
                                     ..
-                                } = editor_machine.snippet()
+                                }) = editor_machine.snippet()
                                 {
                                     format!("@[$lock:Count constrained to {}]", constraint)
                                 } else {
@@ -205,7 +205,7 @@ impl MyApp {
                                     String::new()
                                 } else {
                                     if machine.beacons.iter().all_equal() {
-                                        let modules = module_counts(&machine.beacons[0])
+                                        let modules = module_counts(&machine.beacons[0].modules)
                                             .into_iter()
                                             .map(|(name, count)| format!("{count} × {name}"))
                                             .join(",");
@@ -215,7 +215,7 @@ impl MyApp {
                                             .beacons
                                             .iter()
                                             .map(|beacon| {
-                                                let modules = module_counts(beacon)
+                                                let modules = module_counts(&beacon.modules)
                                                     .into_iter()
                                                     .map(|(name, count)| {
                                                         format!("{count} × {name}")
@@ -393,13 +393,11 @@ impl MyApp {
                                 if r.clicked() {
                                     self.edit_machine_index = Some(i);
                                     self.machine_count_constraint = match editor_machine.snippet() {
-                                        SnippetMachine::Source { .. }
-                                        | SnippetMachine::Sink { .. } => {
+                                        MachineSnippet::Source(_) | MachineSnippet::Sink(_) => {
                                             unreachable!()
                                         }
-                                        SnippetMachine::Crafter {
-                                            count_constraint, ..
-                                        } => count_constraint
+                                        MachineSnippet::Crafter(crafter) => crafter
+                                            .count_constraint
                                             .map(|c| c.to_string())
                                             .unwrap_or_default(),
                                     };
@@ -609,13 +607,13 @@ impl MyApp {
                                                 .set_beacons(
                                                     i,
                                                     (0..num_beacons)
-                                                        .map(|_| {
-                                                            (0..2)
+                                                        .map(|_| Beacon {
+                                                            modules: (0..2)
                                                                 .map(|_| {
                                                                     self.default_speed_module
                                                                         .clone()
                                                                 })
-                                                                .collect_vec()
+                                                                .collect_vec(),
                                                         })
                                                         .collect(),
                                                 )
@@ -665,10 +663,10 @@ impl MyApp {
                     }
                     let mut constraint_to_delete2 = None;
                     for (i, machine) in self.editor.machines().iter().enumerate() {
-                        if let SnippetMachine::Crafter {
+                        if let MachineSnippet::Crafter(CrafterSnippet {
                             count_constraint: Some(count),
                             ..
-                        } = machine.snippet()
+                        }) = machine.snippet()
                         {
                             ui.horizontal(|ui| {
                                 ui.rich_label(&format!(

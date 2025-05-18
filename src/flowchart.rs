@@ -1,5 +1,5 @@
 use {
-    crate::{editor::Editor, primitives::Speed, rf, snippet::SnippetMachine},
+    crate::{editor::Editor, primitives::Speed, rf, snippet::MachineSnippet},
     itertools::Itertools,
     std::{cmp::min, collections::VecDeque, fmt::Write},
     tracing::warn,
@@ -21,9 +21,9 @@ pub fn generate(editor: &Editor, title: &str) -> String {
     for (index, editor_machine) in editor.machines().iter().enumerate() {
         let machine = editor_machine.machine();
         let (left_bracket, right_bracket) = match editor_machine.snippet() {
-            SnippetMachine::Source { .. } => ("[\\", "/]"),
-            SnippetMachine::Sink { .. } => ("[/", "\\]"),
-            SnippetMachine::Crafter { .. } => ("([", "])"),
+            MachineSnippet::Source { .. } => ("[\\", "/]"),
+            MachineSnippet::Sink { .. } => ("[/", "\\]"),
+            MachineSnippet::Crafter { .. } => ("([", "])"),
         };
 
         writeln!(
