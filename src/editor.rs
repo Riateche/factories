@@ -257,9 +257,13 @@ impl Editor {
         &mut self,
         item: &str,
         speed: Option<f64>,
+        replace_all: bool,
     ) -> anyhow::Result<()> {
         if !self.info.all_items.contains(item) {
             bail!("unknown item: {item:?}");
+        }
+        if replace_all {
+            self.item_speed_constraints.clear();
         }
         if let Some(speed) = speed {
             self.item_speed_constraints.insert(item.into(), speed);

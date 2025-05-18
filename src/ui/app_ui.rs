@@ -604,7 +604,9 @@ impl MyApp {
                     if let Some(item) = constraint_to_delete {
                         self.saved = false;
                         self.alerts.clear();
-                        self.editor.set_item_speed_constraint(&item, None).or_warn();
+                        self.editor
+                            .set_item_speed_constraint(&item, None, false)
+                            .or_warn();
                         self.after_constraint_changed();
                     }
                     let mut constraint_to_delete2 = None;
@@ -647,7 +649,7 @@ impl MyApp {
                     }
 
                     ui.horizontal(|ui| {
-                        ui.label("Add item speed constraint: ");
+                        ui.label("Set item speed constraint: ");
                         ComboBox::new(("constraint_item", self.generation), "")
                             .selected_text(&self.item_speed_contraint_item)
                             .show_ui(ui, |ui| {
@@ -674,7 +676,10 @@ impl MyApp {
                             text_response.request_focus();
                         }
                         ui.label("/s");
-                        if ui.button("Add").clicked()
+                        let set = ui.button("Set").clicked();
+                        let replace_all = ui.button("Replace all").clicked();
+                        if set
+                            || replace_all
                             || (text_response.lost_focus()
                                 && ui.input(|i| i.key_pressed(Key::Enter)))
                         {
@@ -685,6 +690,7 @@ impl MyApp {
                                     .set_item_speed_constraint(
                                         &self.item_speed_contraint_item,
                                         Some(speed),
+                                        replace_all,
                                     )
                                     .or_warn();
                                 self.after_constraint_changed();
