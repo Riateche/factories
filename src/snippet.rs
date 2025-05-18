@@ -1,5 +1,5 @@
 use {
-    crate::primitives::{MachineCount, Speed},
+    crate::primitives::{CrafterName, ItemName, MachineCount, ModuleName, RecipeName, Speed},
     serde::{Deserialize, Serialize},
     std::collections::BTreeMap,
 };
@@ -8,18 +8,18 @@ use {
 #[serde(tag = "type")]
 pub enum SnippetMachine {
     Source {
-        item: String,
+        item: ItemName,
     },
     Sink {
-        item: String,
+        item: ItemName,
     },
     Crafter {
-        crafter: String,
+        crafter: CrafterName,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        modules: Vec<String>,
+        modules: Vec<ModuleName>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        beacons: Vec<Vec<String>>,
-        recipe: String,
+        beacons: Vec<Vec<ModuleName>>,
+        recipe: RecipeName,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         count_constraint: Option<MachineCount>,
     },
@@ -29,5 +29,5 @@ pub enum SnippetMachine {
 pub struct Snippet {
     pub machines: Vec<SnippetMachine>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub item_speed_constraints: BTreeMap<String, Speed>,
+    pub item_speed_constraints: BTreeMap<ItemName, Speed>,
 }

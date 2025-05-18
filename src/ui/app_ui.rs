@@ -4,7 +4,13 @@ use {
         drop_down::DropDownBox,
         ui_ext::UiExt,
     },
-    crate::{machine::Module, primitives::Speed, rf, snippet::SnippetMachine, ResultExtOrWarn},
+    crate::{
+        machine::Module,
+        primitives::{CrafterName, RecipeName, Speed},
+        rf,
+        snippet::SnippetMachine,
+        ResultExtOrWarn,
+    },
     eframe::egui::{self, Color32, ComboBox, Frame, Key},
     egui::{Response, ScrollArea, TextEdit, Ui, Widget},
     itertools::Itertools,
@@ -56,8 +62,11 @@ impl MyApp {
                                 if let Some(item) = drop_down_response.option_selected.cloned() {
                                     self.add_crafter(item.recipe(), item.crafter()).or_warn();
                                 } else if drop_down_response.enter_pressed {
-                                    self.add_crafter(&self.recipe_search_text.clone(), None)
-                                        .or_warn();
+                                    self.add_crafter(
+                                        &self.recipe_search_text.as_str().into(),
+                                        None,
+                                    )
+                                    .or_warn();
                                 }
                             });
                         });
@@ -143,7 +152,7 @@ impl MyApp {
                         ui.label("No machines.");
                     }
                     let mut index_to_remove = None;
-                    let mut recipe_to_add: Option<(String, Option<String>)> = None;
+                    let mut recipe_to_add: Option<(RecipeName, Option<CrafterName>)> = None;
                     for (i, editor_machine) in self.editor.machines().iter().enumerate() {
                         let machine = editor_machine.machine();
                         ui.horizontal(|ui| {
@@ -179,10 +188,11 @@ impl MyApp {
                                 format!("{}{} × ", lock, rf(machine.crafter_count))
                             };
                             let tooltip = if (machine.recipe.products.len() == 1
-                                && machine.recipe.name == machine.recipe.products[0].name)
+                                && machine.recipe.name.as_str()
+                                    == machine.recipe.products[0].name.as_str())
                                 || machine.crafter.is_source_or_sink()
                             {
-                                machine.crafter.name.clone()
+                                machine.crafter.name.to_string()
                             } else {
                                 format!("{}({})", machine.crafter.name, machine.recipe.name)
                             };
@@ -299,7 +309,8 @@ impl MyApp {
                                                 )
                                             } else {
                                                 if recipe.products.len() == 1
-                                                    && recipe.products[0].name == recipe.name
+                                                    && recipe.products[0].name.as_str()
+                                                        == recipe.name.as_str()
                                                 {
                                                     String::new()
                                                 } else {
@@ -346,8 +357,8 @@ impl MyApp {
                                             self.replace_with_craft_index = None;
                                             let item = self.replace_with_craft_options.remove(0).0;
                                             recipe_to_add = Some((
-                                                item.recipe().to_string(),
-                                                item.crafter().map(|s| s.to_string()),
+                                                item.recipe().clone(),
+                                                item.crafter().cloned(),
                                             ));
                                         } else {
                                             self.replace_with_craft_index = Some(i);
@@ -370,8 +381,8 @@ impl MyApp {
                                         });
                                     if let Some(value) = value {
                                         recipe_to_add = Some((
-                                            value.recipe().to_string(),
-                                            value.crafter().map(|s| s.to_string()),
+                                            value.recipe().clone(),
+                                            value.crafter().cloned(),
                                         ));
                                         self.replace_with_craft_index = None;
                                     }
@@ -409,7 +420,7 @@ impl MyApp {
                         self.after_machines_changed();
                     }
                     if let Some((recipe, crafter)) = recipe_to_add {
-                        self.add_crafter(&recipe, crafter.as_deref()).or_warn();
+                        self.add_crafter(&recipe, crafter.as_ref()).or_warn();
                     }
                 });
 
@@ -438,11 +449,19 @@ impl MyApp {
                                         self.editor.machines()[i].machine().crafter.name.clone();
                                     ComboBox::new(("change_crafter", self.generation), "")
                                         .selected_text(
-                                            &self.editor.machines()[i].machine().crafter.name,
+                                            self.editor.machines()[i]
+                                                .machine()
+                                                .crafter
+                                                .name
+                                                .as_str(),
                                         )
                                         .show_ui(ui, |ui| {
                                             for item in crafters {
-                                                ui.selectable_value(&mut text, item.clone(), item);
+                                                ui.selectable_value(
+                                                    &mut text,
+                                                    item.clone(),
+                                                    item.as_str(),
+                                                );
                                             }
                                         });
                                     if text != self.editor.machines()[i].machine().crafter.name {
@@ -625,8 +644,8 @@ impl MyApp {
                                 item, speed
                             ));
                             if ui.button("Edit").clicked() {
-                                self.item_speed_contraint_item = item.clone();
-                                self.old_item_speed_contraint_item = item.clone();
+                                self.item_speed_contraint_item = item.to_string();
+                                self.old_item_speed_contraint_item = item.to_string();
                                 self.item_speed_contraint_speed = speed.to_string();
                                 focus_speed_constraint_input = true;
                             }
@@ -691,8 +710,8 @@ impl MyApp {
                                 for item in self.editor.added_items() {
                                     ui.selectable_value(
                                         &mut self.item_speed_contraint_item,
-                                        item.clone(),
-                                        item,
+                                        item.to_string(),
+                                        item.as_str(),
                                     );
                                 }
                             });
@@ -723,7 +742,7 @@ impl MyApp {
                                 self.alerts.clear();
                                 self.editor
                                     .set_item_speed_constraint(
-                                        &self.item_speed_contraint_item,
+                                        &self.item_speed_contraint_item.as_str().into(),
                                         Some(speed),
                                         replace_all,
                                     )

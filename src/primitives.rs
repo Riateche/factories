@@ -1,6 +1,7 @@
 use {
     crate::rf,
     derive_more::{From, Into},
+    once_cell::sync::Lazy,
     ordered_float::OrderedFloat,
     serde::{Deserialize, Serialize},
     std::{
@@ -12,7 +13,7 @@ use {
 };
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, From, Into, Serialize, Deserialize,
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
 )]
 pub struct Speed(OrderedFloat<f64>);
 
@@ -68,7 +69,7 @@ impl SubAssign for Speed {
 }
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, From, Into, Serialize, Deserialize,
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
 )]
 pub struct MachineCount(OrderedFloat<f64>);
 
@@ -99,7 +100,19 @@ impl Display for MachineCount {
 }
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, From, Into, Serialize, Deserialize,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Default,
+    From,
+    Into,
+    Serialize,
+    Deserialize,
 )]
 pub struct Amount(OrderedFloat<f64>);
 
@@ -164,4 +177,121 @@ impl Mul<Speed> for f64 {
     fn mul(self, rhs: Speed) -> Self::Output {
         (self * f64::from(rhs)).into()
     }
+}
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
+)]
+pub struct ItemName(String);
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
+)]
+pub struct RecipeName(String);
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
+)]
+pub struct CrafterName(String);
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
+)]
+pub struct ModuleName(String);
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
+)]
+pub struct RecipeCategory(String);
+
+impl Display for ItemName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl Display for RecipeName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl Display for CrafterName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl Display for ModuleName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl Display for RecipeCategory {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl PartialEq<&str> for ItemName {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+impl PartialEq<&str> for RecipeCategory {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+impl ItemName {
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+impl ModuleName {
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+impl CrafterName {
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+impl RecipeName {
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+impl From<&str> for ItemName {
+    fn from(value: &str) -> Self {
+        value.to_string().into()
+    }
+}
+impl From<&str> for ModuleName {
+    fn from(value: &str) -> Self {
+        value.to_string().into()
+    }
+}
+impl From<&str> for CrafterName {
+    fn from(value: &str) -> Self {
+        value.to_string().into()
+    }
+}
+impl From<&str> for RecipeName {
+    fn from(value: &str) -> Self {
+        value.to_string().into()
+    }
+}
+impl From<&str> for RecipeCategory {
+    fn from(value: &str) -> Self {
+        value.to_string().into()
+    }
+}
+
+impl CrafterName {
+    pub const SOURCE: Lazy<Self> = Lazy::new(|| "source".into());
+    pub const SINK: Lazy<Self> = Lazy::new(|| "sink".into());
+}
+impl RecipeCategory {
+    pub const SOURCE: Lazy<Self> = Lazy::new(|| "source".into());
+    pub const SINK: Lazy<Self> = Lazy::new(|| "sink".into());
 }

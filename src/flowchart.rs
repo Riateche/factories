@@ -51,8 +51,9 @@ pub fn generate(editor: &Editor, title: &str) -> String {
                             .map(|i| &i.name)
                             .expect("invalid source or sink recipe")
                     })
+                    .as_str()
             } else {
-                &machine.recipe.name
+                machine.recipe.name.as_str()
             },
             right_bracket,
         )

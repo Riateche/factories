@@ -1,5 +1,5 @@
 use {
-    crate::primitives::Amount,
+    crate::primitives::{Amount, ItemName, RecipeCategory, RecipeName},
     anyhow::Context,
     serde::{Deserialize, Deserializer, Serialize},
     std::collections::BTreeMap,
@@ -30,14 +30,14 @@ where
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Recipe {
-    pub name: String,
+    pub name: RecipeName,
     pub enabled: bool,
     // ["crafting", "pressing", "crafting-with-fluid-or-metallurgy", "metallurgy", "electronics", "smelting", "recycling", "crafting-with-fluid",
     //  "cryogenics", "metallurgy-or-assembling", "organic-or-assembling", "electronics-or-assembling", "cryogenics-or-assembling", "electromagnetics",
     //  "oil-processing", "organic-or-chemistry", "chemistry", "chemistry-or-cryogenics", "electronics-with-fluid", "advanced-crafting",
     //  "rocket-building", "centrifuging", "recycling-or-hand-crafting", "organic-or-hand-crafting", "organic", "captive-spawner-process",
     //  "crushing", "parameters"]
-    pub category: String,
+    pub category: RecipeCategory,
     #[serde(deserialize_with = "deserialize_array_or_object")]
     pub ingredients: Vec<Ingredient>,
     #[serde(deserialize_with = "deserialize_array_or_object")]
@@ -65,7 +65,7 @@ pub struct Effects {
 pub struct Ingredient {
     #[serde(rename = "type")]
     pub type_: String, // item or fluid
-    pub name: String,
+    pub name: ItemName,
     pub amount: Amount,
 }
 
@@ -75,7 +75,7 @@ pub struct Product {
     pub amount: Amount,
     #[serde(default)]
     pub ignored_by_productivity: Amount,
-    pub name: String,
+    pub name: ItemName,
     #[serde(rename = "type")]
     pub type_: String, // item or fluid
     /// Probability that a craft will yield one additional product. Also applies to bonus crafts caused by productivity.
@@ -91,9 +91,9 @@ pub struct Product {
 pub struct Entity {
     #[serde(rename = "type")]
     pub type_: String,
-    pub name: String,
+    pub name: ItemName,
     pub energy_usage: Option<f64>,
-    pub crafting_categories: Option<BTreeMap<String, bool>>,
+    pub crafting_categories: Option<BTreeMap<RecipeCategory, bool>>,
     pub crafting_speed: Option<f64>,
     pub ingredient_count: Option<u64>,
     pub max_item_product_count: Option<u64>,
@@ -116,12 +116,12 @@ pub struct MineableProperties {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GameData {
-    pub recipes: BTreeMap<String, Recipe>,
-    pub entities: BTreeMap<String, Entity>,
+    pub recipes: BTreeMap<RecipeName, Recipe>,
+    pub entities: BTreeMap<ItemName, Entity>,
 }
 
 impl GameData {
-    pub fn recipe(&self, name: &str) -> anyhow::Result<&Recipe> {
+    pub fn recipe(&self, name: &RecipeName) -> anyhow::Result<&Recipe> {
         self.recipes
             .get(name)
             .with_context(|| format!("invalid recipe name: {name:?}"))

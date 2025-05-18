@@ -3,6 +3,7 @@ use {
         config::Config,
         game_data::GameData,
         machine::{Crafter, Module, ModuleType},
+        primitives::{CrafterName, ItemName, ModuleName, RecipeCategory},
     },
     anyhow::{bail, Context},
     std::{
@@ -17,10 +18,10 @@ use {
 pub struct Info {
     pub config: Config,
     pub game_data: GameData,
-    pub modules: BTreeMap<String, Module>,
-    pub all_items: BTreeSet<String>,
-    pub crafters: BTreeMap<String, Crafter>,
-    pub category_to_crafter: BTreeMap<String, Vec<String>>,
+    pub modules: BTreeMap<ModuleName, Module>,
+    pub all_items: BTreeSet<ItemName>,
+    pub crafters: BTreeMap<CrafterName, Crafter>,
+    pub category_to_crafter: BTreeMap<RecipeCategory, Vec<CrafterName>>,
 }
 
 impl Info {
@@ -82,12 +83,12 @@ impl Info {
                     category_to_crafter
                         .entry(category.clone())
                         .or_default()
-                        .push(entity.name.clone());
+                        .push(entity.name.as_str().into());
                 }
                 crafters.insert(
-                    entity.name.clone(),
+                    entity.name.as_str().into(),
                     Crafter {
-                        name: entity.name.clone(),
+                        name: entity.name.as_str().into(),
                         energy_usage: entity.energy_usage.with_context(|| {
                             format!("missing energy_usage for crafter: {entity:?}")
                         })?,
@@ -161,7 +162,7 @@ impl Info {
         })
     }
 
-    pub fn auto_select_crafter(&self, crafters: &[String]) -> Option<String> {
+    pub fn auto_select_crafter(&self, crafters: &[CrafterName]) -> Option<CrafterName> {
         if crafters.len() == 1 {
             Some(crafters[0].clone())
         } else if crafters.iter().any(|c| c == &self.config.assembler_type) {
@@ -173,7 +174,7 @@ impl Info {
         }
     }
 
-    pub fn module(&self, name: &str) -> anyhow::Result<&Module> {
+    pub fn module(&self, name: &ModuleName) -> anyhow::Result<&Module> {
         self.modules
             .get(name)
             .with_context(|| format!("invalid module name: {name:?}"))

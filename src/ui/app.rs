@@ -1,13 +1,18 @@
 use {
     super::drop_down::DropDownOption,
     crate::{
-        editor::Editor, flowchart, game_data::Recipe, info::Info, machine::Module, ResultExtOrWarn,
+        editor::Editor,
+        flowchart,
+        game_data::Recipe,
+        info::Info,
+        machine::Module,
+        primitives::{CrafterName, ItemName, RecipeName, Speed},
+        ResultExtOrWarn,
     },
     anyhow::{format_err, Context},
     arboard::Clipboard,
     eframe::egui::{Align, Id, Layout, Widget},
     itertools::Itertools,
-    ordered_float::OrderedFloat,
     std::{
         borrow::Cow,
         collections::{BTreeSet, VecDeque},
@@ -20,7 +25,14 @@ use {
     url::Url,
 };
 
-pub fn item_icon_url(name: &str) -> String {
+pub fn item_icon_url(name: &ItemName) -> String {
+    let path = env::current_dir()
+        .unwrap()
+        .join(format!("icons/factorio/{name}.png"));
+    Url::from_file_path(&path).unwrap().to_string()
+}
+
+pub fn recipe_icon_url(name: &RecipeName) -> String {
     let path = env::current_dir()
         .unwrap()
         .join(format!("icons/factorio/{name}.png"));
@@ -39,7 +51,7 @@ pub struct MyApp {
 
     // Static data
     pub all_recipe_menu_items: Vec<RecipeMenuItem>,
-    pub belt_speeds: Vec<(f64, String)>,
+    pub belt_speeds: Vec<(Speed, ItemName)>,
     pub default_speed_module: Module,
     pub default_productivity_module: Module,
 
@@ -112,12 +124,12 @@ impl MyApp {
                 // belt_speed is tiles per tick;
                 // throughput per second = belt_speed * 60 (ticks/s) * 8 (density)
                 (
-                    e.belt_speed.expect("missing belt_speed") * 60. * 8.,
+                    Speed::from(e.belt_speed.expect("missing belt_speed") * 60. * 8.),
                     e.name.clone(),
                 )
             })
             .collect_vec();
-        belt_speeds.sort_by_key(|(speed, _)| OrderedFloat(*speed));
+        belt_speeds.sort_by_key(|(speed, _)| *speed);
 
         let (speed_module_name, prod_module_name) = match editor.info().config.module_tier {
             1 => ("speed-module", "productivity-module"),
@@ -128,11 +140,15 @@ impl MyApp {
         let default_speed_module = editor
             .info()
             .modules
-            .get(speed_module_name)
+            .get(&speed_module_name.into())
             .unwrap()
             .clone();
-        let default_productivity_module =
-            editor.info().modules.get(prod_module_name).unwrap().clone();
+        let default_productivity_module = editor
+            .info()
+            .modules
+            .get(&prod_module_name.into())
+            .unwrap()
+            .clone();
 
         let mut app = MyApp {
             msg_receiver: ui_msg_receiver,
@@ -172,7 +188,11 @@ impl MyApp {
         Ok(app)
     }
 
-    pub fn add_crafter(&mut self, recipe_name: &str, crafter: Option<&str>) -> anyhow::Result<()> {
+    pub fn add_crafter(
+        &mut self,
+        recipe_name: &RecipeName,
+        crafter: Option<&CrafterName>,
+    ) -> anyhow::Result<()> {
         self.saved = false;
         self.alerts.clear();
         self.editor.add_crafter(recipe_name, crafter)?;
@@ -267,20 +287,20 @@ impl MyApp {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecipeMenuItem {
-    recipe: String,
-    crafter: Option<String>,
+    recipe: RecipeName,
+    crafter: Option<CrafterName>,
     text: String,
     id: Id,
 }
 
 impl RecipeMenuItem {
-    pub fn new(recipe: String, crafter: Option<String>) -> Self {
+    pub fn new(recipe: RecipeName, crafter: Option<CrafterName>) -> Self {
         RecipeMenuItem {
             id: Id::new(("RecipeMenuItem", &recipe, &crafter)),
             text: if let Some(crafter) = &crafter {
                 format!("{} @ {}", recipe, crafter)
             } else {
-                recipe.clone()
+                recipe.to_string()
             },
             recipe,
             crafter,
@@ -291,12 +311,12 @@ impl RecipeMenuItem {
         &self.text
     }
 
-    pub fn recipe(&self) -> &str {
+    pub fn recipe(&self) -> &RecipeName {
         &self.recipe
     }
 
-    pub fn crafter(&self) -> Option<&str> {
-        self.crafter.as_deref()
+    pub fn crafter(&self) -> Option<&CrafterName> {
+        self.crafter.as_ref()
     }
 }
 
@@ -304,16 +324,15 @@ impl Widget for &RecipeMenuItem {
     fn ui(self, ui: &mut eframe::egui::Ui) -> eframe::egui::Response {
         let mut r = None;
         let out_r = ui.horizontal(|ui| {
-            ui.image(item_icon_url(&self.recipe));
-            let mut l = Layout::left_to_right(Align::Center);
-            l.main_justify = true;
-            l.main_align = Align::LEFT;
+            ui.image(recipe_icon_url(&self.recipe));
+            let mut layout = Layout::left_to_right(Align::Center);
+            layout.main_justify = true;
+            layout.main_align = Align::LEFT;
 
-            ui.with_layout(l, |ui| {
+            ui.with_layout(layout, |ui| {
                 ui.spacing_mut().button_padding.y = 3.;
                 r = Some(ui.selectable_label(false, &self.text));
             });
-            //ui.available_size()
         });
         r.unwrap_or(out_r.response)
     }
@@ -321,7 +340,7 @@ impl Widget for &RecipeMenuItem {
 
 impl DropDownOption for &RecipeMenuItem {
     fn search_text(&self) -> std::borrow::Cow<str> {
-        Cow::Borrowed(&self.recipe)
+        Cow::Borrowed(self.recipe.as_str())
     }
 
     fn insert_text(&self) -> std::borrow::Cow<str> {

@@ -1,19 +1,16 @@
 use {
     crate::{
         game_data::{Ingredient, Product, Recipe},
-        primitives::{Amount, Speed},
+        primitives::{Amount, CrafterName, ItemName, ModuleName, RecipeCategory, Speed},
         rf,
     },
     itertools::Itertools,
     serde::{Deserialize, Serialize},
 };
 
-const SOURCE: &str = "source";
-const SINK: &str = "sink";
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Crafter {
-    pub name: String,
+    pub name: CrafterName,
     pub energy_usage: f64,
     pub crafting_speed: f64,
     #[serde(default)] // only for compatibility
@@ -22,13 +19,13 @@ pub struct Crafter {
 
 impl Crafter {
     pub fn is_source(&self) -> bool {
-        self.name == SOURCE
+        self.name == *CrafterName::SOURCE
     }
     pub fn is_sink(&self) -> bool {
-        self.name == SINK
+        self.name == *CrafterName::SINK
     }
     pub fn is_source_or_sink(&self) -> bool {
-        self.name == SOURCE || self.name == SINK
+        self.name == *CrafterName::SOURCE || self.name == *CrafterName::SINK
     }
 }
 
@@ -40,7 +37,7 @@ pub enum ModuleType {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Module {
-    pub name: String,
+    pub name: ModuleName,
     pub type_: ModuleType,
     pub energy_delta_percent: f64,
     pub speed_delta_percent: f64,
@@ -58,28 +55,28 @@ pub struct Machine {
 
 #[derive(Debug, Clone)]
 pub struct ItemSpeed {
-    pub item: String,
+    pub item: ItemName,
     pub speed: Speed,
 }
 
 impl Machine {
-    pub fn new_source(item: &str) -> Self {
+    pub fn new_source(item: &ItemName) -> Self {
         Machine {
             crafter: Crafter {
-                name: SOURCE.into(),
+                name: CrafterName::SOURCE.clone(),
                 energy_usage: 0.0,
                 crafting_speed: 1.0,
                 module_inventory_size: 0,
             },
             crafter_count: 1.0,
             recipe: Recipe {
-                name: format!("{item}-source"),
+                name: format!("{item}-source").into(),
                 enabled: true,
-                category: SOURCE.into(),
+                category: RecipeCategory::SOURCE.clone(),
                 ingredients: Vec::new(),
                 products: vec![Product {
                     amount: Amount::ONE,
-                    name: item.into(),
+                    name: item.clone(),
                     type_: String::new(),
                     extra_count_fraction: 0.0,
                     probability: 1.0,
@@ -98,22 +95,22 @@ impl Machine {
         }
     }
 
-    pub fn new_sink(item: &str) -> Self {
+    pub fn new_sink(item: &ItemName) -> Self {
         Machine {
             crafter: Crafter {
-                name: SINK.into(),
+                name: CrafterName::SINK.clone(),
                 energy_usage: 0.0,
                 crafting_speed: 1.0,
                 module_inventory_size: 0,
             },
             crafter_count: 1.0,
             recipe: Recipe {
-                name: format!("{item}-sink"),
+                name: format!("{item}-sink").into(),
                 enabled: true,
-                category: SINK.into(),
+                category: RecipeCategory::SINK.clone(),
                 ingredients: vec![Ingredient {
                     amount: Amount::ONE,
-                    name: item.into(),
+                    name: item.clone(),
                     type_: String::new(),
                 }],
                 products: Vec::new(),

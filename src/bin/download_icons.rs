@@ -73,8 +73,14 @@ fn main() -> anyhow::Result<()> {
     ]
     .into_iter()
     .collect();
-    for recipe in info.game_data.recipes.keys().chain(info.all_items.iter()) {
-        if blacklist.contains(&recipe.as_str()) {
+    for recipe in info
+        .game_data
+        .recipes
+        .keys()
+        .map(|n| n.as_str())
+        .chain(info.all_items.iter().map(|n| n.as_str()))
+    {
+        if blacklist.contains(&recipe) {
             continue;
         }
         let file_path = format!("icons/factorio/{recipe}.png");
@@ -82,7 +88,7 @@ fn main() -> anyhow::Result<()> {
             println!("downloading {recipe}");
             let mut name = recipe.replace("-", "_");
             name[0..1].make_ascii_uppercase();
-            if let Some(n) = renames.get(recipe.as_str()) {
+            if let Some(n) = renames.get(recipe) {
                 name = n.to_string();
             }
             let handle = || {

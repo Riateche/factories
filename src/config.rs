@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
 
+use crate::primitives::CrafterName;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Config {
-    pub furnace_type: String,
-    pub assembler_type: String,
+    pub furnace_type: CrafterName,
+    pub assembler_type: CrafterName,
 
     // 1, 2, 3
     #[serde(default = "default_module_tier")]

@@ -1,6 +1,11 @@
 #![allow(dead_code)]
 
-use {crate::info::Info, itertools::Itertools, std::collections::BTreeSet, tracing::trace};
+use {
+    crate::{info::Info, primitives::ItemName},
+    itertools::Itertools,
+    std::collections::BTreeSet,
+    tracing::trace,
+};
 
 // Adjust as necessary.
 const REACHABLE_RESOURCES: Option<&[&str]> = Some(&[
@@ -15,20 +20,20 @@ const REACHABLE_RESOURCES: Option<&[&str]> = Some(&[
 
 const HARVESTABLE_LIQUIDS: &[&str] = &["water", "lava", "heavy-oil", "ammoniacal-solution"];
 
-pub fn reachable_items(info: &Info) -> BTreeSet<String> {
-    let harvestable_resources: BTreeSet<String> = info
+pub fn reachable_items(info: &Info) -> BTreeSet<ItemName> {
+    let harvestable_resources: BTreeSet<ItemName> = info
         .game_data
         .entities
         .values()
         .filter(|v| v.resource_category.is_some() || v.type_ == "plant" || v.type_ == "tree")
         .flat_map(|v| &v.mineable_properties.as_ref().unwrap().products)
         .map(|v| v.name.clone())
-        .chain(HARVESTABLE_LIQUIDS.iter().map(|v| v.to_string()))
+        .chain(HARVESTABLE_LIQUIDS.iter().copied().map(|v| v.into()))
         .collect();
     trace!("harvestable_resources: {harvestable_resources:?}\n");
 
-    let mut reachable_items: BTreeSet<String> = if let Some(resources) = REACHABLE_RESOURCES {
-        resources.iter().map(|s| s.to_string()).collect()
+    let mut reachable_items: BTreeSet<ItemName> = if let Some(resources) = REACHABLE_RESOURCES {
+        resources.iter().copied().map(|s| s.into()).collect()
     } else {
         harvestable_resources
     };
@@ -64,7 +69,7 @@ pub fn reachable_items(info: &Info) -> BTreeSet<String> {
                     {
                         trace!("loop detected for {}: {recipe:?}\n\n", bad_product.name);
                     }
-                    verified_recipes.insert(recipe.name.to_string());
+                    verified_recipes.insert(recipe.name.clone());
                 }
             }
         }
