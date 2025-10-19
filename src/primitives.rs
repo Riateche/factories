@@ -7,7 +7,7 @@ use {
     std::{
         fmt::{self, Display, Formatter},
         iter::Sum,
-        ops::{Add, Mul, Neg, Sub, SubAssign},
+        ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign},
         str::FromStr,
     },
     tracing::error,
@@ -16,7 +16,7 @@ use {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
 )]
-pub struct Speed(OrderedFloat<f64>);
+pub struct Speed(pub OrderedFloat<f64>);
 
 impl Speed {
     pub const ZERO: Self = Self(OrderedFloat(0.0));
@@ -69,10 +69,24 @@ impl SubAssign for Speed {
     }
 }
 
+impl Mul<OrderedFloat<f64>> for Speed {
+    type Output = Speed;
+
+    fn mul(self, rhs: OrderedFloat<f64>) -> Self::Output {
+        Self(self.0 * rhs)
+    }
+}
+
+impl MulAssign<OrderedFloat<f64>> for Speed {
+    fn mul_assign(&mut self, rhs: OrderedFloat<f64>) {
+        self.0 *= rhs;
+    }
+}
+
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
 )]
-pub struct MachineCount(OrderedFloat<f64>);
+pub struct MachineCount(pub OrderedFloat<f64>);
 
 impl From<f64> for MachineCount {
     fn from(value: f64) -> Self {
@@ -115,7 +129,7 @@ impl Display for MachineCount {
     Serialize,
     Deserialize,
 )]
-pub struct Amount(OrderedFloat<f64>);
+pub struct Amount(pub OrderedFloat<f64>);
 
 impl Amount {
     pub const ZERO: Self = Self(OrderedFloat(0.0));
@@ -148,6 +162,12 @@ impl Add for Amount {
     }
 }
 
+impl AddAssign for Amount {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 .0 += rhs.0 .0;
+    }
+}
+
 impl Sub for Amount {
     type Output = Amount;
 
@@ -161,6 +181,14 @@ impl Mul<Speed> for Amount {
 
     fn mul(self, rhs: Speed) -> Self::Output {
         (f64::from(self) * f64::from(rhs)).into()
+    }
+}
+
+impl Div<f64> for Amount {
+    type Output = Amount;
+
+    fn div(self, rhs: f64) -> Self::Output {
+        (f64::from(self) / rhs).into()
     }
 }
 

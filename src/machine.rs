@@ -31,6 +31,10 @@ impl Crafter {
     pub fn is_source_or_sink(&self) -> bool {
         self.name == *SOURCE_CRAFTER_NAME || self.name == *SINK_CRAFTER_NAME
     }
+
+    pub fn is_recycler(&self) -> bool {
+        &self.name.0 == "recycler"
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -256,7 +260,7 @@ impl Machine {
 
         let output_speed = (prod_percents / 100.) * crafts_per_second;
 
-        let yield_coef = if &self.crafter.name.0 == "recycler" {
+        let yield_coef = if self.crafter.is_recycler() {
             0.25
         } else {
             1.0

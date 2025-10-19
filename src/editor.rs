@@ -1,9 +1,11 @@
 use {
     crate::{
         info::Info,
-        machine::{Beacon, Machine, Module, ModuleType},
+        machine::{Beacon, ItemSpeed, Machine, Module, ModuleType},
         module_counts,
-        primitives::{CrafterName, ItemNameAndQuality, MachineCount, Quality, RecipeName, Speed},
+        primitives::{
+            Amount, CrafterName, ItemNameAndQuality, MachineCount, Quality, RecipeName, Speed,
+        },
         rf,
         snippet::{BeaconSnippet, CrafterSnippet, MachineSnippet, Snippet, SourceSinkSnippet},
     },
@@ -11,6 +13,7 @@ use {
     fallible_iterator::{FallibleIterator, IteratorExt},
     itertools::Itertools,
     nalgebra::{DMatrix, DVector},
+    ordered_float::OrderedFloat,
     std::{
         collections::{BTreeMap, BTreeSet},
         fmt::Write,
@@ -529,7 +532,17 @@ impl Editor {
     }
 
     fn solve(&mut self) {
-        if let Err(err) = self.try_solve() {
+        let r = if self
+            .machines
+            .iter()
+            .any(|m| m.machine.crafter.is_recycler())
+        {
+            self.try_solve_alt()
+        } else {
+            self.try_solve()
+        };
+
+        if let Err(err) = r {
             warn!("failed to solve: {err}");
         }
     }
@@ -654,7 +667,86 @@ impl Editor {
         Ok(())
     }
 
-    fn try_solve_alt(&mut self) -> anyhow::Result<()> {}
+    fn try_solve_alt(&mut self) -> anyhow::Result<()> {
+        struct MachineInfo {
+            input_speeds: Vec<ItemSpeed>,
+            output_speeds: Vec<ItemSpeed>,
+            is_recycler: bool,
+            count_constraint: Option<OrderedFloat<f64>>,
+            crafter_ticks: OrderedFloat<f64>,
+        }
+
+        let max_count = Amount::from(1000.);
+        for machine in &mut self.machines {
+            machine.machine.crafter_count = 1.;
+        }
+        let mut machines = self
+            .machines
+            .iter()
+            .map(|machine| MachineInfo {
+                input_speeds: machine.machine.input_speeds().collect(),
+                output_speeds: machine.machine.output_speeds(),
+                is_recycler: machine.machine.crafter.is_recycler(),
+                count_constraint: if let MachineSnippet::Crafter(crafter) = &machine.snippet {
+                    crafter.count_constraint.map(|x| x.0)
+                } else {
+                    None
+                },
+                crafter_ticks: 0.0.into(),
+            })
+            .collect_vec();
+        let mut storage = BTreeMap::<ItemNameAndQuality, Amount>::new();
+        let steps = 100_000;
+        for _step in 0..steps {
+            for machine in &mut machines {
+                if machine.is_recycler
+                    && machine.input_speeds.iter().any(|item| {
+                        *storage.entry(item.name_and_quality()).or_default() < max_count / 2.
+                    })
+                {
+                    continue;
+                }
+
+                let crafter_ticks = if let Some(count) = machine.count_constraint {
+                    count
+                } else {
+                    machine
+                        .input_speeds
+                        .iter()
+                        .chain(&machine.output_speeds)
+                        .map(|item| {
+                            let current_count =
+                                (*storage.entry(item.name_and_quality()).or_default());
+                            // .clamp(0.0.into(), max_count);
+                            let max_storage_delta = if item.speed > Speed::ZERO {
+                                max_count - current_count
+                            } else {
+                                current_count
+                            };
+                            // dbg!(max_storage_delta);
+                            // dbg!(item.speed);
+                            max_storage_delta.0 / item.speed.0.abs()
+                        })
+                        .min()
+                        .context("empty machine i/o")?
+                };
+                // dbg!(crafter_ticks);
+                machine.crafter_ticks += crafter_ticks;
+                for item in machine.input_speeds.iter().chain(&machine.output_speeds) {
+                    *storage.entry(item.name_and_quality()).or_default() +=
+                        (item.speed * crafter_ticks).0.into();
+                }
+                // dbg!(&storage);
+            }
+        }
+
+        for (machine, info) in self.machines.iter_mut().zip(machines) {
+            machine.machine.crafter_count = (info.crafter_ticks / (steps as f64)).into();
+        }
+
+        self.solved = true;
+        Ok(())
+    }
 
     fn add_sources_and_sinks(&mut self) -> anyhow::Result<()> {
         self.machines
@@ -667,10 +759,11 @@ impl Editor {
                     .any(|i| i.name_and_quality() == item)
             });
             let any_outputs = self.machines.iter().any(|m| {
-                m.machine
-                    .output_speeds()
-                    .into_iter()
-                    .any(|i| i.name_and_quality() == item)
+                !m.machine.crafter.is_recycler()
+                    && m.machine
+                        .output_speeds()
+                        .into_iter()
+                        .any(|i| i.name_and_quality() == item)
             });
             if any_inputs && !any_outputs {
                 self.add_source(&item)?;
