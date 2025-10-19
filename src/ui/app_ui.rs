@@ -287,6 +287,9 @@ impl MyApp {
                                         let mut menu_items_and_hints = Vec::new();
                                         for recipe in self.editor.info().game_data.recipes.values()
                                         {
+                                            if recipe.is_recycling() {
+                                                continue;
+                                            }
                                             let can_replace = if machine.crafter.is_source() {
                                                 recipe.products.iter().any(|p| &p.name == item)
                                             } else {
@@ -424,7 +427,9 @@ impl MyApp {
                     if let Some(i) = index_to_recycle {
                         self.saved = false;
                         self.alerts.clear();
-                        self.editor.add_recycler(i).or_warn();
+                        self.editor
+                            .add_recycler(i, Some(&self.default_quality_module))
+                            .or_warn();
                         self.after_machines_changed();
                     }
                     if let Some((recipe, crafter)) = recipe_to_add {

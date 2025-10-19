@@ -208,8 +208,14 @@ impl MyApp {
     ) -> anyhow::Result<()> {
         self.saved = false;
         self.alerts.clear();
-        self.editor
-            .add_crafter(recipe_name, Quality::default(), crafter)?;
+        for quality in Quality::ALL {
+            self.editor.add_crafter(
+                recipe_name,
+                quality,
+                crafter,
+                Some(&self.default_quality_module),
+            )?;
+        }
         self.recipe_search_text.clear();
         self.after_machines_changed();
         Ok(())

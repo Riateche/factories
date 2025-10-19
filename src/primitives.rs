@@ -234,7 +234,7 @@ pub struct CrafterName(pub String);
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
 )]
-pub struct ModuleName(String);
+pub struct ModuleName(pub String);
 
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
@@ -347,6 +347,8 @@ pub static SINK_RECIPE_CATEGORY: Lazy<RecipeCategory> = Lazy::new(|| "sink".into
 pub struct Quality(pub u32);
 
 impl Quality {
+    pub const ALL: [Self; 5] = [Self(0), Self(1), Self(2), Self(3), Self(5)];
+
     pub fn as_f64(self) -> f64 {
         self.0.into()
     }

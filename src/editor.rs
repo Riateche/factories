@@ -168,7 +168,11 @@ impl Editor {
         Ok(())
     }
 
-    pub fn add_recycler(&mut self, index: usize) -> anyhow::Result<()> {
+    pub fn add_recycler(
+        &mut self,
+        index: usize,
+        fill_module: Option<&Module>,
+    ) -> anyhow::Result<()> {
         let machine = self.machines.get(index).context("invalid index")?;
         ensure!(machine.machine.crafter.is_sink(), "not a sink");
         let input = machine
@@ -188,7 +192,12 @@ impl Editor {
             .with_context(|| format!("recyling recipe not found for {:?}", input.item))?
             .clone();
 
-        self.add_crafter(&recipe.name, input.quality, Some(&"recycler".into()))?;
+        self.add_crafter(
+            &recipe.name,
+            input.quality,
+            Some(&"recycler".into()),
+            fill_module,
+        )?;
         Ok(())
     }
 
@@ -197,6 +206,7 @@ impl Editor {
         recipe_name: &RecipeName,
         recipe_quality: Quality,
         crafter: Option<&CrafterName>,
+        fill_module: Option<&Module>,
     ) -> anyhow::Result<()> {
         let recipe = self.info.game_data.recipe(recipe_name)?.clone();
         let crafters = self
@@ -218,9 +228,23 @@ impl Editor {
         let add_auto_constraint =
             self.machines.is_empty() && self.item_speed_constraints.is_empty();
 
+        let crafter_info = self
+            .info
+            .crafters
+            .get(&crafter)
+            .with_context(|| format!("crafter not found: {crafter:?}"))?;
         let snippet = CrafterSnippet {
             crafter,
-            modules: vec![],
+            modules: if let Some(module) = fill_module {
+                (0..crafter_info.module_inventory_size)
+                    .map(|_| ItemNameAndQuality {
+                        name: module.name.0.clone().into(),
+                        quality: module.quality,
+                    })
+                    .collect()
+            } else {
+                vec![]
+            },
             beacons: vec![],
             recipe: recipe_name.clone(),
             recipe_quality,
@@ -716,7 +740,7 @@ impl Editor {
                         .chain(&machine.output_speeds)
                         .map(|item| {
                             let current_count =
-                                (*storage.entry(item.name_and_quality()).or_default());
+                                *storage.entry(item.name_and_quality()).or_default();
                             // .clamp(0.0.into(), max_count);
                             let max_storage_delta = if item.speed > Speed::ZERO {
                                 max_count - current_count
@@ -765,7 +789,7 @@ impl Editor {
                         .into_iter()
                         .any(|i| i.name_and_quality() == item)
             });
-            if any_inputs && !any_outputs {
+            if any_inputs && !any_outputs && item.quality == Quality::default() {
                 self.add_source(&item)?;
             } else if !any_inputs && any_outputs {
                 self.add_sink(&item)?;
