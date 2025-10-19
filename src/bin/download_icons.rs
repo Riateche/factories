@@ -94,8 +94,7 @@ fn main() -> anyhow::Result<()> {
             let handle = || {
                 let data = client
                     .get(format!(
-                        "https://wiki.factorio.com/images/thumb/{n}.png/32px-{n}.png",
-                        n = name
+                        "https://wiki.factorio.com/images/thumb/{name}.png/32px-{name}.png"
                     ))
                     .send()?
                     .error_for_status()?

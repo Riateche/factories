@@ -65,8 +65,8 @@ impl UiExt for Ui {
                     let plain_text = &text[current..full.start()];
                     r |= ui.label(plain_text);
                 }
-                if icon.starts_with('$') {
-                    r |= ui.icon(&icon[1..], tooltip);
+                if let Some(icon_remaining) = icon.strip_prefix('$') {
+                    r |= ui.icon(icon_remaining, tooltip);
                 } else {
                     r |= ui.item_icon(icon, tooltip);
                 }

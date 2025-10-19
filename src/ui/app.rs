@@ -297,7 +297,7 @@ impl RecipeMenuItem {
         RecipeMenuItem {
             id: Id::new(("RecipeMenuItem", &recipe, &crafter)),
             text: if let Some(crafter) = &crafter {
-                format!("{} @ {}", recipe, crafter)
+                format!("{recipe} @ {crafter}")
             } else {
                 recipe.to_string()
             },

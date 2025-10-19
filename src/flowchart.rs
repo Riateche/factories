@@ -11,9 +11,8 @@ pub fn generate(editor: &Editor, title: &str) -> String {
         writeln!(
             out,
             "--- \n\
-            title: {}\n\
-            ---",
-            title
+            title: {title}\n\
+            ---"
         )
         .unwrap();
     }
@@ -41,13 +40,13 @@ pub fn generate(editor: &Editor, title: &str) -> String {
                 machine
                     .recipe
                     .ingredients
-                    .get(0)
+                    .first()
                     .map(|i| &i.name)
                     .unwrap_or_else(|| {
                         machine
                             .recipe
                             .products
-                            .get(0)
+                            .first()
                             .map(|i| &i.name)
                             .expect("invalid source or sink recipe")
                     })
@@ -70,7 +69,6 @@ pub fn generate(editor: &Editor, title: &str) -> String {
                 machine
                     .machine()
                     .item_speeds()
-                    .into_iter()
                     .find(|item_speed| item_speed.item == item && item_speed.speed > Speed::ZERO)
                     .map(|item_speed| (machine_index, item_speed.speed))
             })
@@ -84,7 +82,6 @@ pub fn generate(editor: &Editor, title: &str) -> String {
                 machine
                     .machine()
                     .item_speeds()
-                    .into_iter()
                     .find(|item_speed| item_speed.item == item && item_speed.speed < Speed::ZERO)
                     .map(|item_speed| (machine_index, -item_speed.speed))
             })
@@ -105,8 +102,7 @@ pub fn generate(editor: &Editor, title: &str) -> String {
                 let current_speed = min(remaining_speed, *destination_speed);
                 writeln!(
                     out,
-                    "    machine{}-->|{} *{}*|machine{}",
-                    source_machine, current_speed, item, destination_machine
+                    "    machine{source_machine}-->|{current_speed} *{item}*|machine{destination_machine}"
                 )
                 .unwrap();
                 *destination_speed -= current_speed;

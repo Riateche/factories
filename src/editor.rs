@@ -198,7 +198,7 @@ impl Editor {
         self.machines.push(EditorMachine { snippet, machine });
 
         if add_auto_constraint {
-            if let Some(product) = recipe.products.get(0) {
+            if let Some(product) = recipe.products.first() {
                 self.item_speed_constraints
                     .insert(product.name.clone(), Speed::ONE);
             }
@@ -296,7 +296,7 @@ impl Editor {
                 .chain(Some(beacon_text).filter(|t| !t.is_empty()))
                 .join(", ");
             if !modules_text.is_empty() {
-                writeln!(out, "[{}]", modules_text).unwrap();
+                writeln!(out, "[{modules_text}]").unwrap();
             }
             writeln!(out, "------------------------------").unwrap();
         }
@@ -548,7 +548,6 @@ impl Editor {
                 Constraint::ItemSumsToZero { item } => machine
                     .machine
                     .item_speeds()
-                    .into_iter()
                     .filter(|i| &i.item == item)
                     .map(|i| i.speed)
                     .sum::<Speed>()
@@ -556,7 +555,6 @@ impl Editor {
                 Constraint::ItemProduction { item, speed: _ } => machine
                     .machine
                     .item_speeds()
-                    .into_iter()
                     .filter(|i| &i.item == item && i.speed > Speed::ZERO)
                     .map(|i| i.speed)
                     .sum::<Speed>()

@@ -287,11 +287,7 @@ impl From<&str> for RecipeCategory {
     }
 }
 
-impl CrafterName {
-    pub const SOURCE: Lazy<Self> = Lazy::new(|| "source".into());
-    pub const SINK: Lazy<Self> = Lazy::new(|| "sink".into());
-}
-impl RecipeCategory {
-    pub const SOURCE: Lazy<Self> = Lazy::new(|| "source".into());
-    pub const SINK: Lazy<Self> = Lazy::new(|| "sink".into());
-}
+pub static SOURCE_CRAFTER_NAME: Lazy<CrafterName> = Lazy::new(|| "source".into());
+pub static SINK_CRAFTER_NAME: Lazy<CrafterName> = Lazy::new(|| "sink".into());
+pub static SOURCE_RECIPE_CATEGORY: Lazy<RecipeCategory> = Lazy::new(|| "source".into());
+pub static SINK_RECIPE_CATEGORY: Lazy<RecipeCategory> = Lazy::new(|| "sink".into());

@@ -2,7 +2,10 @@ use {
     crate::{
         game_data::{Ingredient, Product, Recipe},
         module_counts,
-        primitives::{Amount, CrafterName, ItemName, ModuleName, RecipeCategory, Speed},
+        primitives::{
+            Amount, CrafterName, ItemName, ModuleName, Speed, SINK_CRAFTER_NAME,
+            SINK_RECIPE_CATEGORY, SOURCE_CRAFTER_NAME, SOURCE_RECIPE_CATEGORY,
+        },
         rf,
     },
     itertools::Itertools,
@@ -20,13 +23,13 @@ pub struct Crafter {
 
 impl Crafter {
     pub fn is_source(&self) -> bool {
-        self.name == *CrafterName::SOURCE
+        self.name == *SOURCE_CRAFTER_NAME
     }
     pub fn is_sink(&self) -> bool {
-        self.name == *CrafterName::SINK
+        self.name == *SINK_CRAFTER_NAME
     }
     pub fn is_source_or_sink(&self) -> bool {
-        self.name == *CrafterName::SOURCE || self.name == *CrafterName::SINK
+        self.name == *SOURCE_CRAFTER_NAME || self.name == *SINK_CRAFTER_NAME
     }
 }
 
@@ -70,7 +73,7 @@ impl Machine {
     pub fn new_source(item: &ItemName) -> Self {
         Machine {
             crafter: Crafter {
-                name: CrafterName::SOURCE.clone(),
+                name: SOURCE_CRAFTER_NAME.clone(),
                 energy_usage: 0.0,
                 crafting_speed: 1.0,
                 module_inventory_size: 0,
@@ -79,7 +82,7 @@ impl Machine {
             recipe: Recipe {
                 name: format!("{item}-source").into(),
                 enabled: true,
-                category: RecipeCategory::SOURCE.clone(),
+                category: SOURCE_RECIPE_CATEGORY.clone(),
                 ingredients: Vec::new(),
                 products: vec![Product {
                     amount: Amount::ONE,
@@ -105,7 +108,7 @@ impl Machine {
     pub fn new_sink(item: &ItemName) -> Self {
         Machine {
             crafter: Crafter {
-                name: CrafterName::SINK.clone(),
+                name: SINK_CRAFTER_NAME.clone(),
                 energy_usage: 0.0,
                 crafting_speed: 1.0,
                 module_inventory_size: 0,
@@ -114,7 +117,7 @@ impl Machine {
             recipe: Recipe {
                 name: format!("{item}-sink").into(),
                 enabled: true,
-                category: RecipeCategory::SINK.clone(),
+                category: SINK_RECIPE_CATEGORY.clone(),
                 ingredients: vec![Ingredient {
                     amount: Amount::ONE,
                     name: item.clone(),
@@ -216,12 +219,12 @@ impl Machine {
         let inputs = if inputs.is_empty() {
             String::new()
         } else {
-            format!("{} ➡ ", inputs)
+            format!("{inputs} ➡ ")
         };
         let outputs = if outputs.is_empty() {
             String::new()
         } else {
-            format!(" ➡ {}", outputs)
+            format!(" ➡ {outputs}")
         };
         let crafter_count = if self.crafter.is_source_or_sink() {
             String::new()
@@ -253,7 +256,7 @@ impl Machine {
                         .into_iter()
                         .map(|(name, count)| format!("{count} × {name}"))
                         .join(",");
-                    format!("beacon({})", modules)
+                    format!("beacon({modules})")
                 })
                 .join("\n")
         }

@@ -179,7 +179,7 @@ impl MyApp {
                                     ..
                                 }) = editor_machine.snippet()
                                 {
-                                    format!("@[$lock:Count constrained to {}]", constraint)
+                                    format!("@[$lock:Count constrained to {constraint}]")
                                 } else {
                                     String::new()
                                 };
@@ -201,28 +201,24 @@ impl MyApp {
                             } else {
                                 let beacon_text = if machine.beacons.is_empty() {
                                     String::new()
+                                } else if machine.beacons.iter().all_equal() {
+                                    let modules = module_counts(&machine.beacons[0].modules)
+                                        .into_iter()
+                                        .map(|(name, count)| format!("{count} × {name}"))
+                                        .join(",");
+                                    format!("{} × beacon({})", machine.beacons.len(), modules)
                                 } else {
-                                    if machine.beacons.iter().all_equal() {
-                                        let modules = module_counts(&machine.beacons[0].modules)
-                                            .into_iter()
-                                            .map(|(name, count)| format!("{count} × {name}"))
-                                            .join(",");
-                                        format!("{} × beacon({})", machine.beacons.len(), modules)
-                                    } else {
-                                        machine
-                                            .beacons
-                                            .iter()
-                                            .map(|beacon| {
-                                                let modules = module_counts(&beacon.modules)
-                                                    .into_iter()
-                                                    .map(|(name, count)| {
-                                                        format!("{count} × {name}")
-                                                    })
-                                                    .join(",");
-                                                format!("beacon({})", modules)
-                                            })
-                                            .join("\n")
-                                    }
+                                    machine
+                                        .beacons
+                                        .iter()
+                                        .map(|beacon| {
+                                            let modules = module_counts(&beacon.modules)
+                                                .into_iter()
+                                                .map(|(name, count)| format!("{count} × {name}"))
+                                                .join(",");
+                                            format!("beacon({modules})")
+                                        })
+                                        .join("\n")
                                 };
                                 let beacon_markup = if machine.beacons.is_empty() {
                                     None
@@ -305,22 +301,20 @@ impl MyApp {
                                                         .map(|i| &i.name)
                                                         .join(" + ")
                                                 )
+                                            } else if recipe.products.len() == 1
+                                                && recipe.products[0].name.as_str()
+                                                    == recipe.name.as_str()
+                                            {
+                                                String::new()
                                             } else {
-                                                if recipe.products.len() == 1
-                                                    && recipe.products[0].name.as_str()
-                                                        == recipe.name.as_str()
-                                                {
-                                                    String::new()
-                                                } else {
-                                                    format!(
-                                                        " (➡ {})",
-                                                        recipe
-                                                            .products
-                                                            .iter()
-                                                            .map(|i| &i.name)
-                                                            .join(" + ")
-                                                    )
-                                                }
+                                                format!(
+                                                    " (➡ {})",
+                                                    recipe
+                                                        .products
+                                                        .iter()
+                                                        .map(|i| &i.name)
+                                                        .join(" + ")
+                                                )
                                             };
                                             for menu_item in
                                                 recipe_menu_items(self.editor.info(), recipe)
@@ -636,8 +630,7 @@ impl MyApp {
                     for (item, speed) in self.editor.item_speed_constraints() {
                         ui.horizontal(|ui| {
                             ui.rich_label(format!(
-                                "@[$lock:Item speed constraint] @[{}]*: {}",
-                                item, speed
+                                "@[$lock:Item speed constraint] @[{item}]*: {speed}"
                             ));
                             if ui.button("Edit").clicked() {
                                 self.item_speed_contraint_item = item.to_string();
@@ -667,7 +660,7 @@ impl MyApp {
                         }) = machine.snippet()
                         {
                             ui.horizontal(|ui| {
-                                ui.rich_label(&format!(
+                                ui.rich_label(format!(
                                     "@[$lock:Machine count constraint] {} × @[{}]*(@[{}]*)",
                                     count,
                                     machine.machine().crafter.name,
