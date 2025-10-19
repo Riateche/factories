@@ -3,7 +3,7 @@ use {
         game_data::{Ingredient, Product, Recipe},
         module_counts,
         primitives::{
-            Amount, CrafterName, ItemName, ModuleName, Speed, SINK_CRAFTER_NAME,
+            Amount, CrafterName, ItemName, ModuleName, Quality, Speed, SINK_CRAFTER_NAME,
             SINK_RECIPE_CATEGORY, SOURCE_CRAFTER_NAME, SOURCE_RECIPE_CATEGORY,
         },
         rf,
@@ -37,15 +37,62 @@ impl Crafter {
 pub enum ModuleType {
     Speed,
     Productivity,
+    Quality,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Module {
     pub name: ModuleName,
     pub type_: ModuleType,
+    pub quality: Quality,
     pub energy_delta_percent: f64,
     pub speed_delta_percent: f64,
     pub productivity_delta_percent: f64,
+    pub quality_delta_percent: f64,
+}
+
+fn round_to_nearest(value: f64, precision: f64) -> f64 {
+    (value * precision).round() / precision
+}
+
+impl Module {
+    pub fn with_quality(&self, quality: Quality) -> Self {
+        assert_eq!(self.quality, Quality(0));
+        Self {
+            name: self.name.clone(),
+            type_: self.type_,
+            quality,
+            energy_delta_percent: if self.energy_delta_percent < 0. {
+                round_to_nearest(
+                    self.energy_delta_percent * (1. + 0.3 * quality.as_f64()),
+                    1.,
+                )
+            } else {
+                self.energy_delta_percent
+            },
+            speed_delta_percent: if self.speed_delta_percent > 0. {
+                round_to_nearest(self.speed_delta_percent * (1. + 0.3 * quality.as_f64()), 1.)
+            } else {
+                self.speed_delta_percent
+            },
+            productivity_delta_percent: if self.productivity_delta_percent > 0. {
+                round_to_nearest(
+                    self.productivity_delta_percent * (1. + 0.3 * quality.as_f64()),
+                    1.,
+                )
+            } else {
+                self.productivity_delta_percent
+            },
+            quality_delta_percent: if self.quality_delta_percent > 0. {
+                round_to_nearest(
+                    self.quality_delta_percent * (1. + 0.3 * quality.as_f64()),
+                    0.1,
+                )
+            } else {
+                self.quality_delta_percent
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]

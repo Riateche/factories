@@ -187,7 +187,7 @@ pub struct ItemName(String);
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
 )]
-pub struct RecipeName(pub String);
+pub struct RecipeName(String);
 
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
@@ -291,3 +291,14 @@ pub static SOURCE_CRAFTER_NAME: Lazy<CrafterName> = Lazy::new(|| "source".into()
 pub static SINK_CRAFTER_NAME: Lazy<CrafterName> = Lazy::new(|| "sink".into());
 pub static SOURCE_RECIPE_CATEGORY: Lazy<RecipeCategory> = Lazy::new(|| "source".into());
 pub static SINK_RECIPE_CATEGORY: Lazy<RecipeCategory> = Lazy::new(|| "sink".into());
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
+)]
+pub struct Quality(pub u32);
+
+impl Quality {
+    pub fn as_f64(self) -> f64 {
+        self.0.into()
+    }
+}

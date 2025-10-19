@@ -517,7 +517,13 @@ impl MyApp {
                                         .iter()
                                         .enumerate()
                                     {
-                                        if ui.rich_label(format!("@[{}:]", module.name)).clicked() {
+                                        if ui
+                                            .rich_label(format!(
+                                                "@[{}.q{}:]",
+                                                module.name, module.quality.0
+                                            ))
+                                            .clicked()
+                                        {
                                             index_to_remove = Some(ii);
                                         }
                                     }
@@ -551,9 +557,20 @@ impl MyApp {
                                         {
                                             allowed_modules.push(&self.default_productivity_module);
                                         }
+                                        if self.editor.machines()[i]
+                                            .machine()
+                                            .recipe
+                                            .allowed_effects
+                                            .quality
+                                        {
+                                            allowed_modules.push(&self.default_quality_module);
+                                        }
                                         for module in allowed_modules {
                                             if ui
-                                                .rich_label(format!("@[{}:]", module.name))
+                                                .rich_label(format!(
+                                                    "@[{}.q{}:]",
+                                                    module.name, module.quality.0
+                                                ))
                                                 .clicked()
                                             {
                                                 let num_added = if ui.input(|i| i.modifiers.shift) {
@@ -564,9 +581,7 @@ impl MyApp {
                                                 for _ in 0..num_added {
                                                     self.saved = false;
                                                     self.alerts.clear();
-                                                    self.editor
-                                                        .add_module(i, &module.name)
-                                                        .or_warn();
+                                                    self.editor.add_module(i, module).or_warn();
                                                     added = true;
                                                 }
                                             }
@@ -579,8 +594,9 @@ impl MyApp {
                                 }
                                 ui.horizontal(|ui| {
                                     let label = ui.rich_label(format!(
-                                        "Number of @[beacon:](2@[{}:]) per machine:",
-                                        &self.default_speed_module.name
+                                        "Number of @[beacon:](2@[{}.q{}:]) per machine:",
+                                        &self.default_speed_module.name,
+                                        self.default_speed_module.quality.0,
                                     ));
                                     let text_response = TextEdit::singleline(&mut self.num_beacons)
                                         .desired_width(50.0)

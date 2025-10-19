@@ -1,10 +1,16 @@
-use factories::{primitives::RecipeName, Info};
+use factories::editor::Editor;
 
 fn main() -> anyhow::Result<()> {
-    let info = Info::load()?;
-    let recipe = info
-        .game_data
-        .recipe(&RecipeName("assembling-machine-3".into()))?;
-    println!("recipe {recipe:?}");
+    // let recipe = info
+    //     .game_data
+    //     .recipe(&RecipeName("assembling-machine-3".into()))?;
+
+    let mut editor = Editor::init()?;
+    editor.add_crafter(
+        &"assembling-machine-3".into(),
+        Some(&"assembling-machine-3".into()),
+    )?;
+
+    println!("machines {:#?}", editor.machines());
     Ok(())
 }

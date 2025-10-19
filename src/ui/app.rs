@@ -6,7 +6,7 @@ use {
         game_data::Recipe,
         info::Info,
         machine::Module,
-        primitives::{CrafterName, ItemName, RecipeName, Speed},
+        primitives::{CrafterName, ItemName, ModuleName, RecipeName, Speed},
         ResultExtOrWarn,
     },
     anyhow::{format_err, Context},
@@ -54,6 +54,7 @@ pub struct MyApp {
     pub belt_speeds: Vec<(Speed, ItemName)>,
     pub default_speed_module: Module,
     pub default_productivity_module: Module,
+    pub default_quality_module: Module,
 
     // Global
     pub editor: Editor,
@@ -131,24 +132,36 @@ impl MyApp {
             .collect_vec();
         belt_speeds.sort_by_key(|(speed, _)| *speed);
 
-        let (speed_module_name, prod_module_name) = match editor.info().config.module_tier {
-            1 => ("speed-module", "productivity-module"),
-            2 => ("speed-module-2", "productivity-module-2"),
-            3 => ("speed-module-3", "productivity-module-3"),
-            _ => panic!("invalid module_tier in config, expected 1, 2 or 3"),
-        };
+        fn module_name(prefix: &str, tier: u32) -> ModuleName {
+            if tier == 1 {
+                prefix.into()
+            } else {
+                format!("{prefix}-{tier}").into()
+            }
+        }
+
+        let config = &editor.info().config;
         let default_speed_module = editor
             .info()
             .modules
-            .get(&speed_module_name.into())
+            .get(&module_name("speed-module", config.speed_module_tier))
             .unwrap()
-            .clone();
+            .with_quality(config.speed_module_quality);
         let default_productivity_module = editor
             .info()
             .modules
-            .get(&prod_module_name.into())
+            .get(&module_name(
+                "productivity-module",
+                config.speed_module_tier,
+            ))
             .unwrap()
-            .clone();
+            .with_quality(config.productivity_module_quality);
+        let default_quality_module = editor
+            .info()
+            .modules
+            .get(&module_name("quality-module", config.speed_module_tier))
+            .unwrap()
+            .with_quality(config.quality_module_quality);
 
         let mut app = MyApp {
             msg_receiver: ui_msg_receiver,
@@ -173,6 +186,7 @@ impl MyApp {
             focus_machine_constraint_input: false,
             default_speed_module,
             default_productivity_module,
+            default_quality_module,
             num_beacons: String::new(),
         };
         app.all_recipe_menu_items = app

@@ -1,9 +1,9 @@
 use {
     crate::{
         info::Info,
-        machine::{Beacon, Machine, ModuleType},
+        machine::{Beacon, Machine, Module, ModuleType},
         module_counts,
-        primitives::{CrafterName, ItemName, MachineCount, ModuleName, RecipeName, Speed},
+        primitives::{CrafterName, ItemName, MachineCount, RecipeName, Speed},
         rf,
         snippet::{BeaconSnippet, CrafterSnippet, MachineSnippet, Snippet, SourceSinkSnippet},
     },
@@ -380,17 +380,21 @@ impl Editor {
         }
     }
 
-    pub fn add_module(&mut self, machine_index: usize, module: &ModuleName) -> anyhow::Result<()> {
+    pub fn add_module(&mut self, machine_index: usize, module: &Module) -> anyhow::Result<()> {
         let machine = self
             .machines
             .get_mut(machine_index)
             .context("invalid machine index")?;
-        let module = self.info.module(module)?;
         match module.type_ {
             ModuleType::Speed => {}
             ModuleType::Productivity => {
                 if !machine.machine.recipe.allowed_effects.productivity {
-                    bail!("machin recipe doesn't allow productivity");
+                    bail!("machine recipe doesn't allow productivity");
+                }
+            }
+            ModuleType::Quality => {
+                if !machine.machine.recipe.allowed_effects.quality {
+                    bail!("machine recipe doesn't allow quality");
                 }
             }
         }

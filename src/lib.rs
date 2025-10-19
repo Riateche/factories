@@ -1,12 +1,12 @@
-mod analyze;
-mod config;
-mod editor;
-mod flowchart;
-mod game_data;
-mod info;
-mod machine;
+pub mod analyze;
+pub mod config;
+pub mod editor;
+pub mod flowchart;
+pub mod game_data;
+pub mod info;
+pub mod machine;
 pub mod primitives;
-mod snippet;
+pub mod snippet;
 pub mod ui;
 
 pub use crate::info::Info;
@@ -38,10 +38,12 @@ where
     }
 }
 
-fn module_counts(modules: &[Module]) -> BTreeMap<&str, usize> {
+fn module_counts(modules: &[Module]) -> BTreeMap<String, usize> {
     let mut module_counts = BTreeMap::<_, usize>::new();
     for module in modules {
-        *module_counts.entry(module.name.as_str()).or_default() += 1;
+        *module_counts
+            .entry(format!("{}.q{}", module.name, module.quality.0))
+            .or_default() += 1;
     }
     module_counts
 }
