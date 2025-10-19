@@ -187,7 +187,7 @@ pub struct ItemName(String);
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
 )]
-pub struct RecipeName(String);
+pub struct RecipeName(pub String);
 
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,

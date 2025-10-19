@@ -5,7 +5,7 @@ mod flowchart;
 mod game_data;
 mod info;
 mod machine;
-mod primitives;
+pub mod primitives;
 mod snippet;
 pub mod ui;
 
