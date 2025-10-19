@@ -1,5 +1,7 @@
 use {
-    crate::primitives::{CrafterName, ItemName, MachineCount, ModuleName, RecipeName, Speed},
+    crate::primitives::{
+        CrafterName, ItemNameAndQuality, MachineCount, ModuleName, Quality, RecipeName, Speed,
+    },
     serde::{Deserialize, Serialize},
     std::collections::BTreeMap,
 };
@@ -20,26 +22,28 @@ impl From<CrafterSnippet> for MachineSnippet {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SourceSinkSnippet {
-    pub item: ItemName,
+    pub item: ItemNameAndQuality,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CrafterSnippet {
     pub crafter: CrafterName,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub modules: Vec<ModuleName>,
+    pub modules: Vec<ItemNameAndQuality>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub beacons: Vec<BeaconSnippet>,
     pub recipe: RecipeName,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub count_constraint: Option<MachineCount>,
+    #[serde(default, skip_serializing_if = "Quality::is_zero")]
+    pub recipe_quality: Quality,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub struct Snippet {
     pub machines: Vec<MachineSnippet>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub item_speed_constraints: BTreeMap<ItemName, Speed>,
+    pub item_speed_constraints: BTreeMap<ItemNameAndQuality, Speed>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]

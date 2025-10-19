@@ -69,7 +69,9 @@ pub fn generate(editor: &Editor, title: &str) -> String {
                 machine
                     .machine()
                     .item_speeds()
-                    .find(|item_speed| item_speed.item == item && item_speed.speed > Speed::ZERO)
+                    .find(|item_speed| {
+                        item_speed.name_and_quality() == item && item_speed.speed > Speed::ZERO
+                    })
                     .map(|item_speed| (machine_index, item_speed.speed))
             })
             .collect_vec();
@@ -82,7 +84,9 @@ pub fn generate(editor: &Editor, title: &str) -> String {
                 machine
                     .machine()
                     .item_speeds()
-                    .find(|item_speed| item_speed.item == item && item_speed.speed < Speed::ZERO)
+                    .find(|item_speed| {
+                        item_speed.name_and_quality() == item && item_speed.speed < Speed::ZERO
+                    })
                     .map(|item_speed| (machine_index, -item_speed.speed))
             })
             .collect();

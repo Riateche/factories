@@ -3,13 +3,14 @@ use {
     derive_more::{From, Into},
     once_cell::sync::Lazy,
     ordered_float::OrderedFloat,
-    serde::{Deserialize, Serialize},
+    serde::{de::Error, Deserialize, Serialize},
     std::{
         fmt::{self, Display, Formatter},
         iter::Sum,
-        ops::{Mul, Neg, Sub, SubAssign},
+        ops::{Add, Mul, Neg, Sub, SubAssign},
         str::FromStr,
     },
+    tracing::error,
 };
 
 #[derive(
@@ -139,6 +140,14 @@ impl Display for Amount {
     }
 }
 
+impl Add for Amount {
+    type Output = Amount;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        (f64::from(self) + f64::from(rhs)).into()
+    }
+}
+
 impl Sub for Amount {
     type Output = Amount;
 
@@ -182,17 +191,17 @@ impl Mul<Speed> for f64 {
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
 )]
-pub struct ItemName(String);
+pub struct ItemName(pub String);
 
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
 )]
-pub struct RecipeName(String);
+pub struct RecipeName(pub String);
 
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
 )]
-pub struct CrafterName(String);
+pub struct CrafterName(pub String);
 
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
@@ -202,7 +211,7 @@ pub struct ModuleName(String);
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
 )]
-pub struct RecipeCategory(String);
+pub struct RecipeCategory(pub String);
 
 impl Display for ItemName {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -293,12 +302,93 @@ pub static SOURCE_RECIPE_CATEGORY: Lazy<RecipeCategory> = Lazy::new(|| "source".
 pub static SINK_RECIPE_CATEGORY: Lazy<RecipeCategory> = Lazy::new(|| "sink".into());
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    From,
+    Into,
+    Serialize,
+    Deserialize,
 )]
 pub struct Quality(pub u32);
 
 impl Quality {
     pub fn as_f64(self) -> f64 {
         self.0.into()
+    }
+
+    pub fn is_zero(&self) -> bool {
+        self.0 == 0
+    }
+
+    pub fn next(self) -> Option<Quality> {
+        match self.0 {
+            0..=2 => Some(Self(self.0 + 1)),
+            3 => Some(Self(5)),
+            5 => None,
+            _ => {
+                error!("invalid quality: {:?}", self);
+                None
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into)]
+pub struct ItemNameAndQuality {
+    pub name: ItemName,
+    pub quality: Quality,
+}
+
+impl<'de> Deserialize<'de> for ItemNameAndQuality {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        s.parse().map_err(D::Error::custom)
+    }
+}
+
+impl Display for ItemNameAndQuality {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if self.quality.0 > 0 {
+            write!(f, "{}.q{}", self.name, self.quality.0)
+        } else {
+            write!(f, "{}", self.name)
+        }
+    }
+}
+
+impl FromStr for ItemNameAndQuality {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Some((name, quality)) = s.split_once(".q") {
+            Ok(Self {
+                name: name.into(),
+                quality: Quality(quality.parse()?),
+            })
+        } else {
+            Ok(Self {
+                name: s.into(),
+                quality: Quality::default(),
+            })
+        }
+    }
+}
+
+impl Serialize for ItemNameAndQuality {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.to_string().serialize(serializer)
     }
 }

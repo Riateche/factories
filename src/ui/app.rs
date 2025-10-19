@@ -6,7 +6,7 @@ use {
         game_data::Recipe,
         info::Info,
         machine::Module,
-        primitives::{CrafterName, ItemName, ModuleName, RecipeName, Speed},
+        primitives::{CrafterName, ItemName, ModuleName, Quality, RecipeName, Speed},
         ResultExtOrWarn,
     },
     anyhow::{format_err, Context},
@@ -152,14 +152,14 @@ impl MyApp {
             .modules
             .get(&module_name(
                 "productivity-module",
-                config.speed_module_tier,
+                config.productivity_module_tier,
             ))
             .unwrap()
             .with_quality(config.productivity_module_quality);
         let default_quality_module = editor
             .info()
             .modules
-            .get(&module_name("quality-module", config.speed_module_tier))
+            .get(&module_name("quality-module", config.quality_module_tier))
             .unwrap()
             .with_quality(config.quality_module_quality);
 
@@ -208,7 +208,8 @@ impl MyApp {
     ) -> anyhow::Result<()> {
         self.saved = false;
         self.alerts.clear();
-        self.editor.add_crafter(recipe_name, crafter)?;
+        self.editor
+            .add_crafter(recipe_name, Quality::default(), crafter)?;
         self.recipe_search_text.clear();
         self.after_machines_changed();
         Ok(())

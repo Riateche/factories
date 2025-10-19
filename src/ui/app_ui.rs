@@ -150,6 +150,7 @@ impl MyApp {
                         ui.label("No machines.");
                     }
                     let mut index_to_remove = None;
+                    let mut index_to_recycle = None;
                     let mut recipe_to_add: Option<(RecipeName, Option<CrafterName>)> = None;
                     for (i, editor_machine) in self.editor.machines().iter().enumerate() {
                         let machine = editor_machine.machine();
@@ -162,10 +163,11 @@ impl MyApp {
                                     for stack in &item_speeds {
                                         if stack.speed < Speed::ZERO {
                                             ui.rich_label(format!(
-                                                "{}{} @[{}:]",
+                                                "{}{} @[{}.q{}:]",
                                                 if is_first { "" } else { "+ " },
                                                 -stack.speed,
                                                 stack.item,
+                                                stack.quality.0,
                                             ));
                                             is_first = false;
                                         }
@@ -251,10 +253,11 @@ impl MyApp {
                                     for stack in &item_speeds {
                                         if stack.speed > Speed::ZERO {
                                             ui.rich_label(format!(
-                                                "{}{} @[{}:]",
+                                                "{}{} @[{}.q{}:]",
                                                 if is_first { "➡ " } else { "+ " },
                                                 stack.speed,
                                                 stack.item,
+                                                stack.quality.0,
                                             ));
                                             is_first = false;
                                         }
@@ -379,6 +382,15 @@ impl MyApp {
                                         self.replace_with_craft_index = None;
                                     }
                                 }
+
+                                if machine.crafter.is_sink() {
+                                    let r = ui.with_tooltip("Replace with a recycler", |ui| {
+                                        ui.button("Recycle")
+                                    });
+                                    if r.clicked() {
+                                        index_to_recycle = Some(i);
+                                    }
+                                }
                             } else {
                                 // not source or sink
                                 let r = ui.button("Edit");
@@ -407,6 +419,12 @@ impl MyApp {
                         self.saved = false;
                         self.alerts.clear();
                         self.editor.remove_machine(i).or_warn();
+                        self.after_machines_changed();
+                    }
+                    if let Some(i) = index_to_recycle {
+                        self.saved = false;
+                        self.alerts.clear();
+                        self.editor.add_recycler(i).or_warn();
                         self.after_machines_changed();
                     }
                     if let Some((recipe, crafter)) = recipe_to_add {
@@ -716,7 +734,7 @@ impl MyApp {
                                     ui.selectable_value(
                                         &mut self.item_speed_contraint_item,
                                         item.to_string(),
-                                        item.as_str(),
+                                        item.to_string(),
                                     );
                                 }
                             });
@@ -744,14 +762,13 @@ impl MyApp {
                         {
                             self.saved = false;
                             if let Some(speed) = self.item_speed_contraint_speed.parse().or_warn() {
-                                self.alerts.clear();
-                                self.editor
-                                    .set_item_speed_constraint(
-                                        &self.item_speed_contraint_item.as_str().into(),
-                                        Some(speed),
-                                        replace_all,
-                                    )
-                                    .or_warn();
+                                if let Some(item) = self.item_speed_contraint_item.parse().or_warn()
+                                {
+                                    self.alerts.clear();
+                                    self.editor
+                                        .set_item_speed_constraint(&item, Some(speed), replace_all)
+                                        .or_warn();
+                                }
                                 self.after_constraint_changed();
                             }
                         }

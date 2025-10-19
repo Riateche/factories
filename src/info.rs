@@ -55,9 +55,7 @@ impl Info {
             "recipe-unknown",
         ];
         game_data.recipes.retain(|_, recipe| {
-            recipe.category != "recycling"
-                && recipe.category != "recycling-or-hand-crafting"
-                && recipe.category != "captive-spawner-process"
+            recipe.category != "captive-spawner-process"
                 && recipe.category != "parameters"
                 && !blacklist.contains(&recipe.name.as_str())
         });

@@ -3,7 +3,7 @@ use {
         info::Info,
         machine::{Beacon, Machine, Module, ModuleType},
         module_counts,
-        primitives::{CrafterName, ItemName, MachineCount, RecipeName, Speed},
+        primitives::{CrafterName, ItemNameAndQuality, MachineCount, Quality, RecipeName, Speed},
         rf,
         snippet::{BeaconSnippet, CrafterSnippet, MachineSnippet, Snippet, SourceSinkSnippet},
     },
@@ -39,7 +39,7 @@ impl EditorMachine {
 pub struct Editor {
     info: Info,
     machines: Vec<EditorMachine>,
-    item_speed_constraints: BTreeMap<ItemName, Speed>,
+    item_speed_constraints: BTreeMap<ItemNameAndQuality, Speed>,
     solved: bool,
 }
 
@@ -75,9 +75,12 @@ impl Editor {
         let modules = snippet
             .modules
             .iter()
-            .map(|name| self.info.module(name))
+            .map(|item| {
+                self.info
+                    .module(&item.name.0.clone().into())
+                    .map(|module| module.with_quality(item.quality))
+            })
             .transpose_into_fallible()
-            .cloned()
             .collect()?;
 
         let beacons = snippet
@@ -102,6 +105,7 @@ impl Editor {
             modules,
             beacons,
             recipe,
+            recipe_quality: snippet.recipe_quality,
         })
     }
 
@@ -139,8 +143,8 @@ impl Editor {
         self.solved = true;
     }
 
-    fn add_source(&mut self, item: &ItemName) -> anyhow::Result<()> {
-        if !self.info.all_items.contains(item) {
+    fn add_source(&mut self, item: &ItemNameAndQuality) -> anyhow::Result<()> {
+        if !self.info.all_items.contains(&item.name) {
             bail!("unknown item: {item:?}");
         }
         self.solved = false;
@@ -150,8 +154,8 @@ impl Editor {
         Ok(())
     }
 
-    fn add_sink(&mut self, item: &ItemName) -> anyhow::Result<()> {
-        if !self.info.all_items.contains(item) {
+    fn add_sink(&mut self, item: &ItemNameAndQuality) -> anyhow::Result<()> {
+        if !self.info.all_items.contains(&item.name) {
             bail!("unknown item: {item:?}");
         }
         self.solved = false;
@@ -161,9 +165,34 @@ impl Editor {
         Ok(())
     }
 
+    pub fn add_recycler(&mut self, index: usize) -> anyhow::Result<()> {
+        let machine = self.machines.get(index).context("invalid index")?;
+        ensure!(machine.machine.crafter.is_sink(), "not a sink");
+        let input = machine
+            .machine
+            .input_speeds()
+            .next()
+            .context("missing input in sink")?;
+
+        let recipe = self
+            .info
+            .game_data
+            .recipes
+            .values()
+            .find(|recipe| {
+                recipe.is_recycling() && recipe.ingredients.iter().any(|ing| ing.name == input.item)
+            })
+            .with_context(|| format!("recyling recipe not found for {:?}", input.item))?
+            .clone();
+
+        self.add_crafter(&recipe.name, input.quality, Some(&"recycler".into()))?;
+        Ok(())
+    }
+
     pub fn add_crafter(
         &mut self,
         recipe_name: &RecipeName,
+        recipe_quality: Quality,
         crafter: Option<&CrafterName>,
     ) -> anyhow::Result<()> {
         let recipe = self.info.game_data.recipe(recipe_name)?.clone();
@@ -191,6 +220,7 @@ impl Editor {
             modules: vec![],
             beacons: vec![],
             recipe: recipe_name.clone(),
+            recipe_quality,
             count_constraint: None,
         }
         .into();
@@ -199,8 +229,13 @@ impl Editor {
 
         if add_auto_constraint {
             if let Some(product) = recipe.products.first() {
-                self.item_speed_constraints
-                    .insert(product.name.clone(), Speed::ONE);
+                self.item_speed_constraints.insert(
+                    ItemNameAndQuality {
+                        name: product.name.clone(),
+                        quality: recipe_quality,
+                    },
+                    Speed::ONE,
+                );
             }
         }
         self.after_machines_changed();
@@ -322,14 +357,14 @@ impl Editor {
 
     pub fn set_item_speed_constraint(
         &mut self,
-        item: &ItemName,
+        item: &ItemNameAndQuality,
         speed: Option<Speed>,
         replace_all: bool,
     ) -> anyhow::Result<()> {
         if replace_all {
             self.clear_all_constraints_internal();
         }
-        if !self.info.all_items.contains(item) {
+        if !self.info.all_items.contains(&item.name) {
             bail!("unknown item: {item:?}");
         }
         if let Some(speed) = speed {
@@ -407,11 +442,15 @@ impl Editor {
                 bail!("modules are not supported for source and sink")
             }
             MachineSnippet::Crafter(snippet) => {
-                snippet.modules.push(module.name.clone());
+                snippet.modules.push(ItemNameAndQuality {
+                    name: String::from(module.name.clone()).into(),
+                    quality: module.quality,
+                });
                 machine.machine.modules.push(module.clone());
             }
         }
 
+        self.add_sources_and_sinks()?;
         self.solve();
         Ok(())
     }
@@ -440,6 +479,7 @@ impl Editor {
             }
         }
 
+        self.add_sources_and_sinks()?;
         self.solve();
         Ok(())
     }
@@ -481,17 +521,10 @@ impl Editor {
         Ok(())
     }
 
-    pub fn added_items(&self) -> BTreeSet<ItemName> {
+    pub fn added_items(&self) -> BTreeSet<ItemNameAndQuality> {
         self.machines
             .iter()
-            .flat_map(|m| {
-                m.machine
-                    .recipe
-                    .ingredients
-                    .iter()
-                    .map(|i| i.name.clone())
-                    .chain(m.machine.recipe.products.iter().map(|i| i.name.clone()))
-            })
+            .flat_map(|m| m.machine.item_speeds().map(|i| i.name_and_quality()))
             .collect()
     }
 
@@ -510,9 +543,17 @@ impl Editor {
 
         #[derive(Debug, Clone)]
         enum Constraint {
-            ItemSumsToZero { item: ItemName },
-            ItemProduction { item: ItemName, speed: Speed },
-            MachineCount { index: usize, count: MachineCount },
+            ItemSumsToZero {
+                item: ItemNameAndQuality,
+            },
+            ItemProduction {
+                item: ItemNameAndQuality,
+                speed: Speed,
+            },
+            MachineCount {
+                index: usize,
+                count: MachineCount,
+            },
         }
 
         self.solved = false;
@@ -552,14 +593,14 @@ impl Editor {
                 Constraint::ItemSumsToZero { item } => machine
                     .machine
                     .item_speeds()
-                    .filter(|i| &i.item == item)
+                    .filter(|i| &i.name_and_quality() == item)
                     .map(|i| i.speed)
                     .sum::<Speed>()
                     .into(),
                 Constraint::ItemProduction { item, speed: _ } => machine
                     .machine
                     .item_speeds()
-                    .filter(|i| &i.item == item && i.speed > Speed::ZERO)
+                    .filter(|i| &i.name_and_quality() == item && i.speed > Speed::ZERO)
                     .map(|i| i.speed)
                     .sum::<Speed>()
                     .into(),
@@ -613,19 +654,24 @@ impl Editor {
         Ok(())
     }
 
+    fn try_solve_alt(&mut self) -> anyhow::Result<()> {}
+
     fn add_sources_and_sinks(&mut self) -> anyhow::Result<()> {
         self.machines
             .retain(|m| !m.machine.crafter.is_source_or_sink());
         let items = self.added_items();
         for item in items {
-            let any_inputs = self
-                .machines
-                .iter()
-                .any(|m| m.machine.recipe.ingredients.iter().any(|i| i.name == item));
-            let any_outputs = self
-                .machines
-                .iter()
-                .any(|m| m.machine.recipe.products.iter().any(|i| i.name == item));
+            let any_inputs = self.machines.iter().any(|m| {
+                m.machine
+                    .input_speeds()
+                    .any(|i| i.name_and_quality() == item)
+            });
+            let any_outputs = self.machines.iter().any(|m| {
+                m.machine
+                    .output_speeds()
+                    .into_iter()
+                    .any(|i| i.name_and_quality() == item)
+            });
             if any_inputs && !any_outputs {
                 self.add_source(&item)?;
             } else if !any_inputs && any_outputs {
@@ -664,7 +710,7 @@ impl Editor {
             }
         }
         if !remaining_machines.is_empty() {
-            warn!("remaining_machines is not empty: {remaining_machines:?}");
+            //warn!("remaining_machines is not empty: {remaining_machines:?}");
             new_machines.extend(remaining_machines);
         }
         self.machines = new_machines;
@@ -697,7 +743,7 @@ impl Editor {
         }
     }
 
-    pub fn item_speed_constraints(&self) -> &BTreeMap<ItemName, Speed> {
+    pub fn item_speed_constraints(&self) -> &BTreeMap<ItemNameAndQuality, Speed> {
         &self.item_speed_constraints
     }
 }

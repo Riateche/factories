@@ -51,6 +51,12 @@ pub struct Recipe {
     pub allowed_effects: Effects,
 }
 
+impl Recipe {
+    pub fn is_recycling(&self) -> bool {
+        self.category.0 == "recycling" || self.category.0 == "recycling-or-hand-crafting"
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct Effects {
     pub consumption: bool,
