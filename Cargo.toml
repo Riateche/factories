@@ -21,7 +21,7 @@ open = "5.3.2"
 ordered-float = { version = "5.0.0", features = ["serde"] }
 regex = "1.11.1"
 reqwest = { version = "0.12.15", features = ["blocking"] }
-serde = { version = "1.0.219", features = ["derive"] }
+serde = { version = "1.0.219", features = ["derive", "rc"] }
 serde_json = "1.0.140"
 toml = "0.8.22"
 tracing = { version = "0.1.41" }

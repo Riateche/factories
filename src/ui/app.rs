@@ -262,7 +262,9 @@ impl MyApp {
             "snippets/{}.json",
             name_or_untitled(&self.snippet_name)
         ))?;
-        self.save_chart()?;
+        if self.editor.solved() {
+            self.save_chart()?;
+        }
         self.saved = true;
         self.snippet_names.insert(self.snippet_name.clone());
         Ok(())
@@ -359,11 +361,11 @@ impl Widget for &RecipeMenuItem {
 }
 
 impl DropDownOption for &RecipeMenuItem {
-    fn search_text(&self) -> std::borrow::Cow<str> {
+    fn search_text(&self) -> std::borrow::Cow<'_, str> {
         Cow::Borrowed(self.recipe.as_str())
     }
 
-    fn insert_text(&self) -> std::borrow::Cow<str> {
+    fn insert_text(&self) -> std::borrow::Cow<'_, str> {
         Cow::Borrowed(&self.text)
     }
 

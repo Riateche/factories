@@ -287,9 +287,11 @@ impl Machine {
         if quality_percent <= 0. {
             return same_quality_products;
         }
+
         let Some(next_quality) = self.recipe_quality.next() else {
             return same_quality_products;
         };
+
         let mut next_quality_products = Vec::new();
         for item in &mut same_quality_products {
             next_quality_products.push(ItemSpeed {
@@ -299,9 +301,26 @@ impl Machine {
             });
             item.speed = item.speed * (1. - quality_percent / 100.);
         }
-        let mut all_products = same_quality_products;
-        all_products.extend(next_quality_products);
-        all_products
+
+        let mut all_qualities = vec![same_quality_products, next_quality_products];
+        let mut super_quality = next_quality;
+        while let Some(next) = super_quality.next() {
+            super_quality = next;
+            let previous_quality_products = all_qualities.last_mut().unwrap();
+            let mut super_quality_products = Vec::new();
+            let super_quality_percent = 10.;
+            for item in previous_quality_products {
+                super_quality_products.push(ItemSpeed {
+                    item: item.item.clone(),
+                    quality: super_quality,
+                    speed: item.speed * (super_quality_percent / 100.),
+                });
+                item.speed = item.speed * (1. - super_quality_percent / 100.);
+            }
+            all_qualities.push(super_quality_products);
+        }
+
+        all_qualities.into_iter().flatten().collect()
     }
 
     pub fn item_speeds(&self) -> impl Iterator<Item = ItemSpeed> + '_ {

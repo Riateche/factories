@@ -97,10 +97,12 @@ pub fn generate(editor: &Editor, title: &str) -> String {
             loop {
                 let Some((destination_machine, destination_speed)) = destinations.front_mut()
                 else {
-                    warn!(
-                        "unable to allocate remaining {}/s {} to destinations",
-                        remaining_speed, item
-                    );
+                    if remaining_speed < epsilon {
+                        warn!(
+                            "unable to allocate remaining {} {} to destinations",
+                            remaining_speed, item
+                        );
+                    }
                     break 'outer;
                 };
                 let current_speed = min(remaining_speed, *destination_speed);

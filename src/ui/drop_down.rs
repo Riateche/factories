@@ -9,8 +9,8 @@ use {
 };
 
 pub trait DropDownOption: Widget {
-    fn search_text(&self) -> Cow<str>;
-    fn insert_text(&self) -> Cow<str>;
+    fn search_text(&self) -> Cow<'_, str>;
+    fn insert_text(&self) -> Cow<'_, str>;
     fn id(&self) -> Id;
 }
 

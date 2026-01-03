@@ -15,7 +15,19 @@ use {machine::Module, std::collections::BTreeMap, tracing::warn};
 /// Round float to second decimal digit.
 /// It's better than formatting it because we want values like "5.2", not "5.20".
 fn rf(f: f64) -> f64 {
-    (f * 100.0).round() / 100.0
+    if f.abs() > 0.1 {
+        return (f * 100.0).round() / 100.0;
+    }
+
+    let decimals = 2;
+    if f == 0. || decimals == 0 {
+        0.0
+    } else {
+        let shift = decimals - f.abs().log10().ceil() as i32;
+        let shift_factor = 10_f64.powi(shift);
+
+        (f * shift_factor).round() / shift_factor
+    }
 }
 
 fn report_error(error: impl Into<anyhow::Error>) {

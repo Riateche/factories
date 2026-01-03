@@ -80,7 +80,7 @@ impl Editor {
             .iter()
             .map(|item| {
                 self.info
-                    .module(&item.name.0.clone().into())
+                    .module(&item.name.0.to_string().into())
                     .map(|module| module.with_quality(item.quality))
             })
             .transpose_into_fallible()
@@ -238,7 +238,7 @@ impl Editor {
             modules: if let Some(module) = fill_module {
                 (0..crafter_info.module_inventory_size)
                     .map(|_| ItemNameAndQuality {
-                        name: module.name.0.clone().into(),
+                        name: module.name.0.as_str().into(),
                         quality: module.quality,
                     })
                     .collect()
@@ -399,7 +399,7 @@ impl Editor {
         } else {
             self.item_speed_constraints.remove(item);
         }
-        self.solve();
+        self.quick_solve();
         Ok(())
     }
 
@@ -425,7 +425,7 @@ impl Editor {
                 snippet.count_constraint = count;
             }
         }
-        self.solve();
+        self.quick_solve();
         Ok(())
     }
 
@@ -470,7 +470,7 @@ impl Editor {
             }
             MachineSnippet::Crafter(snippet) => {
                 snippet.modules.push(ItemNameAndQuality {
-                    name: String::from(module.name.clone()).into(),
+                    name: module.name.as_str().into(),
                     quality: module.quality,
                 });
                 machine.machine.modules.push(module.clone());
@@ -478,7 +478,7 @@ impl Editor {
         }
 
         self.add_sources_and_sinks()?;
-        self.solve();
+        self.quick_solve();
         Ok(())
     }
 
@@ -507,7 +507,7 @@ impl Editor {
         }
 
         self.add_sources_and_sinks()?;
-        self.solve();
+        self.quick_solve();
         Ok(())
     }
 
@@ -544,7 +544,7 @@ impl Editor {
                 machine.machine.beacons = new_beacons;
             }
         }
-        self.solve();
+        self.quick_solve();
         Ok(())
     }
 
@@ -555,15 +555,30 @@ impl Editor {
             .collect()
     }
 
-    fn solve(&mut self) {
-        let r = if self
+    fn can_quick_solve(&self) -> bool {
+        !self
             .machines
             .iter()
             .any(|m| m.machine.crafter.is_recycler())
-        {
-            self.try_solve_alt()
+    }
+
+    fn quick_solve(&mut self) {
+        if self.can_quick_solve() {
+            let r = self.try_solve();
+
+            if let Err(err) = r {
+                warn!("failed to solve: {err}");
+            }
         } else {
+            self.solved = false;
+        }
+    }
+
+    pub fn solve(&mut self) {
+        let r = if self.can_quick_solve() {
             self.try_solve()
+        } else {
+            self.try_solve_alt()
         };
 
         if let Err(err) = r {
@@ -695,12 +710,15 @@ impl Editor {
         struct MachineInfo {
             input_speeds: Vec<ItemSpeed>,
             output_speeds: Vec<ItemSpeed>,
+            #[allow(dead_code)]
             is_recycler: bool,
-            count_constraint: Option<OrderedFloat<f64>>,
+            count_constraint: Option<MachineCount>,
             crafter_ticks: OrderedFloat<f64>,
+            crafter_ticks_on_this_step: OrderedFloat<f64>,
         }
 
-        let max_count = Amount::from(1000.);
+        self.solved = false;
+        let max_count = Amount::from(100_000.);
         for machine in &mut self.machines {
             machine.machine.crafter_count = 1.;
         }
@@ -712,65 +730,119 @@ impl Editor {
                 output_speeds: machine.machine.output_speeds(),
                 is_recycler: machine.machine.crafter.is_recycler(),
                 count_constraint: if let MachineSnippet::Crafter(crafter) = &machine.snippet {
-                    crafter.count_constraint.map(|x| x.0)
+                    crafter.count_constraint
+                } else if machine.machine.crafter.is_source_or_sink() {
+                    let item = machine
+                        .machine
+                        .input_speeds()
+                        .chain(machine.machine.output_speeds())
+                        .next()
+                        .expect("missing i/o in source or sink")
+                        .name_and_quality();
+
+                    self.item_speed_constraints
+                        .get(&item)
+                        .map(|speed| MachineCount(speed.0))
                 } else {
                     None
                 },
                 crafter_ticks: 0.0.into(),
+                crafter_ticks_on_this_step: 0.0.into(),
             })
             .collect_vec();
         let mut storage = BTreeMap::<ItemNameAndQuality, Amount>::new();
         let steps = 100_000;
-        for _step in 0..steps {
+        for step in 0..steps {
+            println!("step={step}");
             for machine in &mut machines {
-                if machine.is_recycler
-                    && machine.input_speeds.iter().any(|item| {
-                        *storage.entry(item.name_and_quality()).or_default() < max_count / 2.
-                    })
-                {
-                    continue;
-                }
+                machine.crafter_ticks_on_this_step = 0.0.into();
+            }
+            loop {
+                let mut any_progress = false;
+                for machine in &mut machines {
+                    // if machine.is_recycler
+                    //     && machine.input_speeds.iter().any(|item| {
+                    //         *storage.entry(item.name_and_quality()).or_default() < max_count / 2.
+                    //     })
+                    // {
+                    //     continue;
+                    // }
 
-                let crafter_ticks = if let Some(count) = machine.count_constraint {
-                    count
-                } else {
-                    machine
+                    if let Some(constraint) = machine.count_constraint {
+                        if machine.crafter_ticks_on_this_step >= constraint.0 {
+                            continue;
+                        }
+                    }
+
+                    let can_work = machine
                         .input_speeds
                         .iter()
                         .chain(&machine.output_speeds)
-                        .map(|item| {
-                            let current_count =
-                                *storage.entry(item.name_and_quality()).or_default();
-                            // .clamp(0.0.into(), max_count);
-                            let max_storage_delta = if item.speed > Speed::ZERO {
-                                max_count - current_count
-                            } else {
-                                current_count
-                            };
-                            // dbg!(max_storage_delta);
-                            // dbg!(item.speed);
-                            max_storage_delta.0 / item.speed.0.abs()
-                        })
-                        .min()
-                        .context("empty machine i/o")?
-                };
-                // dbg!(crafter_ticks);
-                machine.crafter_ticks += crafter_ticks;
-                for item in machine.input_speeds.iter().chain(&machine.output_speeds) {
-                    *storage.entry(item.name_and_quality()).or_default() +=
-                        (item.speed * crafter_ticks).0.into();
+                        .all(|item_speed| {
+                            let old_count = storage
+                                .get(&item_speed.name_and_quality())
+                                .copied()
+                                .unwrap_or(Amount::ZERO);
+                            let new_count = old_count + Amount(item_speed.speed.0);
+                            (Amount::ZERO..max_count).contains(&new_count)
+                            // if machine_index == 9 {
+                            //     println!(
+                            //         "{} q{} {} -> {}, {}",
+                            //         item_speed.item, item_speed.quality.0, old_count, new_count, r,
+                            //     );
+                            // }
+                        });
+                    // if machine_index == 9 {
+                    //     println!("can_work={can_work}\n");
+                    // }
+                    if can_work {
+                        for item_speed in machine.input_speeds.iter().chain(&machine.output_speeds)
+                        {
+                            *storage.entry(item_speed.name_and_quality()).or_default() +=
+                                Amount(item_speed.speed.0);
+                        }
+                        machine.crafter_ticks += 1.0;
+                        machine.crafter_ticks_on_this_step += 1.0;
+                        any_progress = true;
+                    }
                 }
-                // dbg!(&storage);
+                if !any_progress {
+                    break;
+                }
             }
         }
 
         for (machine, info) in self.machines.iter_mut().zip(machines) {
+            println!("\n{}", machine.machine.description());
+            println!("crafter_ticks={:?}", info.crafter_ticks);
             machine.machine.crafter_count = (info.crafter_ticks / (steps as f64)).into();
         }
 
         self.solved = true;
         Ok(())
     }
+
+    // fn input_requirements(&self, item: &ItemNameAndQuality) -> Vec<Vec<ItemNameAndQuality>> {
+    //     let mut options = vec![vec![item.clone()]];
+    //     for machine in &self.machines {
+    //         if machine
+    //             .machine
+    //             .output_speeds()
+    //             .iter()
+    //             .any(|i| &i.name_and_quality() == item)
+    //         {
+    //             options.push(
+    //                 machine
+    //                     .machine
+    //                     .input_speeds()
+    //                     .flat_map(|i| self.input_requirements(&i.name_and_quality()))
+    //                     .collect_vec(),
+    //             );
+    //         }
+    //     }
+
+    //     todo!()
+    // }
 
     fn add_sources_and_sinks(&mut self) -> anyhow::Result<()> {
         self.machines
@@ -783,18 +855,33 @@ impl Editor {
                     .any(|i| i.name_and_quality() == item)
             });
             let any_outputs = self.machines.iter().any(|m| {
+                m.machine
+                    .output_speeds()
+                    .into_iter()
+                    .any(|i| i.name_and_quality() == item)
+            });
+            let any_non_recycler_outputs = self.machines.iter().any(|m| {
                 !m.machine.crafter.is_recycler()
                     && m.machine
                         .output_speeds()
                         .into_iter()
                         .any(|i| i.name_and_quality() == item)
             });
-            if any_inputs && !any_outputs && item.quality == Quality::default() {
+            if any_inputs && !any_non_recycler_outputs {
                 self.add_source(&item)?;
             } else if !any_inputs && any_outputs {
                 self.add_sink(&item)?;
             }
         }
+        // TMP!
+        // self.add_source(&ItemNameAndQuality {
+        //     name: "iron-plate".into(),
+        //     quality: Quality(0),
+        // })?;
+        // self.add_sink(&ItemNameAndQuality {
+        //     name: "iron-plate".into(),
+        //     quality: Quality(5),
+        // })?;
         Ok(())
     }
 
@@ -838,7 +925,7 @@ impl Editor {
             warn!("failed to add sources and sinks: {r}");
         }
         self.auto_sort_machines();
-        self.solve();
+        self.quick_solve();
     }
 
     pub fn info(&self) -> &Info {

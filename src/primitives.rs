@@ -9,6 +9,7 @@ use {
         iter::Sum,
         ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign},
         str::FromStr,
+        sync::Arc,
     },
     tracing::error,
 };
@@ -219,7 +220,7 @@ impl Mul<Speed> for f64 {
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
 )]
-pub struct ItemName(pub String);
+pub struct ItemName(pub Arc<str>);
 
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, From, Into, Serialize, Deserialize,
@@ -269,7 +270,7 @@ impl Display for RecipeCategory {
 
 impl PartialEq<&str> for ItemName {
     fn eq(&self, other: &&str) -> bool {
-        self.0 == *other
+        &*self.0 == *other
     }
 }
 impl PartialEq<&str> for RecipeCategory {
@@ -280,7 +281,7 @@ impl PartialEq<&str> for RecipeCategory {
 
 impl ItemName {
     pub fn as_str(&self) -> &str {
-        self.0.as_str()
+        &self.0
     }
 }
 impl ModuleName {
@@ -300,7 +301,7 @@ impl RecipeName {
 }
 impl From<&str> for ItemName {
     fn from(value: &str) -> Self {
-        value.to_string().into()
+        Self(value.into())
     }
 }
 impl From<&str> for ModuleName {

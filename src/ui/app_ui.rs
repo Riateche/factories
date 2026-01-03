@@ -441,9 +441,10 @@ impl MyApp {
                     if i < self.editor.machines().len() {
                         ui.horizontal(|ui| {
                             ui.rich_label(format!(
-                                "Edit machine: @[{}]*(@[{}]*)",
+                                "Edit machine: @[{}]*(@[{}.q{}]*)",
                                 self.editor.machines()[i].machine().crafter.name,
                                 &self.editor.machines()[i].machine().recipe.name,
+                                self.editor.machines()[i].machine().recipe_quality.0,
                             ));
                         });
 
@@ -674,7 +675,7 @@ impl MyApp {
                             if ui.button("Edit").clicked() {
                                 self.item_speed_contraint_item = item.to_string();
                                 self.old_item_speed_contraint_item = item.to_string();
-                                self.item_speed_contraint_speed = speed.to_string();
+                                self.item_speed_contraint_speed = speed.0.to_string();
                                 focus_speed_constraint_input = true;
                             }
                             if ui.button("🗙").clicked() {
@@ -794,6 +795,7 @@ impl MyApp {
                     }
                     if ui.button("Solve again").clicked() {
                         self.alerts.clear();
+                        self.editor.solve();
                         self.after_machines_changed();
                     }
                     if ui.button("Copy description").clicked() {
