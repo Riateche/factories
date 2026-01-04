@@ -1,7 +1,9 @@
 use {
     super::app::icon_url,
-    eframe::egui::{self, Color32, Response, Sense, Ui},
+    crate::primitives::Quality,
+    eframe::egui::{self, Color32, ComboBox, Response, Sense, Ui, WidgetText},
     regex::Regex,
+    std::hash::Hash,
     tracing::error,
 };
 
@@ -22,6 +24,13 @@ pub trait UiExt {
     /// @[$lock] - system icon
     /// @[$lock:Tooltip] - system icon with tooltip
     fn rich_label(&mut self, text: impl Into<String>) -> Response;
+
+    fn quality_dropdown(
+        &mut self,
+        id_salt: impl Hash,
+        label: impl Into<WidgetText>,
+        value: &mut Quality,
+    );
 }
 
 impl UiExt for Ui {
@@ -45,6 +54,19 @@ impl UiExt for Ui {
     fn rich_label(&mut self, text: impl Into<String>) -> Response {
         let text = text.into();
         let ui = self;
+        /*
+            @[icon]
+            @[icon:tooltip]
+            @[icon]*
+            @[icon:tooltip]*
+            * at the end - show icon name after icon
+            if tooltip is not specified, tooltip is icon name.
+
+            icon:
+            iron-plate - item/recipe icon
+            iron-plate.q1 - item/recipe and quality icon
+            $lock - ui icon
+        */
         let re = Regex::new(r"@\[([^:\]]*)(:([^:\]]*)){0,1}\](\*){0,1}").unwrap();
         let mut current = 0;
         ui.scope(|ui| {
@@ -106,5 +128,19 @@ impl UiExt for Ui {
             });
         }
         r
+    }
+
+    fn quality_dropdown(
+        &mut self,
+        id_salt: impl Hash,
+        label: impl Into<WidgetText>,
+        value: &mut Quality,
+    ) {
+        let ui = self;
+        ComboBox::new(id_salt, label).show_ui(ui, |ui| {
+            for quality in Quality::ALL {
+                ui.selectable_value(value, quality, quality.0.to_string());
+            }
+        });
     }
 }

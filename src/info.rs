@@ -3,7 +3,7 @@ use {
         config::Config,
         game_data::GameData,
         machine::{Crafter, Module, ModuleType},
-        primitives::{CrafterName, ItemName, ModuleName, RecipeCategory},
+        primitives::{CrafterName, ItemName, ModuleName, Quality, RecipeCategory},
     },
     anyhow::{bail, Context},
     std::{
@@ -87,6 +87,7 @@ impl Info {
                     entity.name.as_str().into(),
                     Crafter {
                         name: entity.name.as_str().into(),
+                        quality: Quality(0),
                         energy_usage: entity.energy_usage.with_context(|| {
                             format!("missing energy_usage for crafter: {entity:?}")
                         })?,

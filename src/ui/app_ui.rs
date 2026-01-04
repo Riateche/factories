@@ -7,7 +7,7 @@ use {
     crate::{
         machine::Beacon,
         module_counts,
-        primitives::{CrafterName, RecipeName, Speed},
+        primitives::{CrafterName, Quality, RecipeName, Speed},
         rf,
         snippet::{CrafterSnippet, MachineSnippet},
         ResultExtOrWarn,
@@ -29,7 +29,7 @@ impl MyApp {
             }
         }
 
-        ScrollArea::vertical()
+        ScrollArea::both()
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
@@ -153,270 +153,321 @@ impl MyApp {
                     let mut index_to_recycle = None;
                     let mut recipe_to_add: Option<(RecipeName, Option<CrafterName>)> = None;
                     for (i, editor_machine) in self.editor.machines().iter().enumerate() {
-                        let machine = editor_machine.machine();
-                        ui.horizontal(|ui| {
-                            let item_speeds = machine.item_speeds().collect_vec();
-                            let mut is_first = true;
-                            Frame::new()
-                                .fill(Color32::from_rgb(255, 230, 230))
-                                .show(ui, |ui| {
-                                    for stack in &item_speeds {
-                                        if stack.speed < Speed::ZERO {
-                                            ui.rich_label(format!(
-                                                "{}{} @[{}.q{}:]",
-                                                if is_first { "" } else { "+ " },
-                                                -stack.speed,
-                                                stack.item,
-                                                stack.quality.0,
-                                            ));
-                                            is_first = false;
-                                        }
-                                    }
-                                });
-                            let crafter_count = if machine.crafter.is_source_or_sink() {
-                                String::new()
-                            } else {
-                                let lock = if let MachineSnippet::Crafter(CrafterSnippet {
-                                    count_constraint: Some(constraint),
-                                    ..
-                                }) = editor_machine.snippet()
-                                {
-                                    format!("@[$lock:Count constrained to {constraint}]")
-                                } else {
-                                    String::new()
-                                };
-                                format!("{}{} × ", lock, rf(machine.crafter_count))
-                            };
-                            let tooltip = if (machine.recipe.products.len() == 1
-                                && machine.recipe.name.as_str()
-                                    == machine.recipe.products[0].name.as_str())
-                                || machine.crafter.is_source_or_sink()
-                            {
-                                machine.crafter.name.to_string()
-                            } else {
-                                format!("{}({})", machine.crafter.name, machine.recipe.name)
-                            };
-                            let modules_text = if machine.modules.is_empty()
-                                && machine.beacons.is_empty()
-                            {
-                                String::new()
-                            } else {
-                                let beacon_text = if machine.beacons.is_empty() {
-                                    String::new()
-                                } else if machine.beacons.iter().all_equal() {
-                                    let modules = module_counts(&machine.beacons[0].modules)
-                                        .into_iter()
-                                        .map(|(name, count)| format!("{count} × {name}"))
-                                        .join(",");
-                                    format!("{} × beacon({})", machine.beacons.len(), modules)
-                                } else {
-                                    machine
-                                        .beacons
-                                        .iter()
-                                        .map(|beacon| {
-                                            let modules = module_counts(&beacon.modules)
-                                                .into_iter()
-                                                .map(|(name, count)| format!("{count} × {name}"))
-                                                .join(",");
-                                            format!("beacon({modules})")
-                                        })
-                                        .join("\n")
-                                };
-                                let beacon_markup = if machine.beacons.is_empty() {
-                                    None
-                                } else {
-                                    Some(format!(
-                                        "{}@[beacon:{}]",
-                                        machine.beacons.len(),
-                                        beacon_text
-                                    ))
-                                };
-                                let text = module_counts(&machine.modules)
-                                    .into_iter()
-                                    .map(|(name, count)| format!("{count}@[{name}:]"))
-                                    .chain(beacon_markup)
-                                    .join(",");
-                                format!("[{text}]")
-                            };
-                            ui.rich_label(format!(
-                                "{}{}@[{}:{}]{}",
-                                if is_first { "" } else { "➡ " },
-                                crafter_count,
-                                machine.crafter.name,
-                                tooltip,
-                                modules_text
-                            ));
-                            is_first = true;
-                            Frame::new()
-                                .fill(Color32::from_rgb(230, 255, 230))
-                                .show(ui, |ui| {
-                                    for stack in &item_speeds {
-                                        if stack.speed > Speed::ZERO {
-                                            ui.rich_label(format!(
-                                                "{}{} @[{}.q{}:]",
-                                                if is_first { "➡ " } else { "+ " },
-                                                stack.speed,
-                                                stack.item,
-                                                stack.quality.0,
-                                            ));
-                                            is_first = false;
-                                        }
-                                    }
-                                });
-
-                            // if ui
-                            //     .selectable_label(self.selected_machine == i, machine.io_text())
-                            //     .clicked()
-                            // {
-                            //     self.selected_machine = i;
-                            // }
-                            ui.add_space(10.0);
-                            if machine.crafter.is_source_or_sink() {
-                                let r = ui.with_tooltip("Replace with a crafting machine", |ui| {
-                                    ui.button("Craft")
-                                });
-                                if r.clicked() {
-                                    if self.replace_with_craft_index == Some(i) {
-                                        self.replace_with_craft_index = None;
+                        let color = if Some(i) == self.edit_machine_index {
+                            Color32::from_rgb(230, 230, 255)
+                        } else {
+                            Color32::from_rgb(255, 255, 255)
+                        };
+                        let margin = if Some(i) == self.edit_machine_index {
+                            5
+                        } else {
+                            0
+                        };
+                        Frame::new()
+                            .fill(color)
+                            .inner_margin(margin)
+                            .show(ui, |ui| {
+                                let machine = editor_machine.machine();
+                                ui.horizontal(|ui| {
+                                    let item_speeds = machine.item_speeds().collect_vec();
+                                    let mut is_first = true;
+                                    Frame::new().fill(Color32::from_rgb(255, 230, 230)).show(
+                                        ui,
+                                        |ui| {
+                                            for stack in &item_speeds {
+                                                if stack.speed < Speed::ZERO {
+                                                    ui.rich_label(format!(
+                                                        "{}{} @[{}.q{}:]",
+                                                        if is_first { "" } else { "+ " },
+                                                        -stack.speed,
+                                                        stack.item,
+                                                        stack.quality.0,
+                                                    ));
+                                                    is_first = false;
+                                                }
+                                            }
+                                        },
+                                    );
+                                    let crafter_count = if machine.crafter.is_source_or_sink() {
+                                        String::new()
                                     } else {
-                                        let item = if machine.crafter.is_source() {
-                                            &machine.recipe.products[0].name
-                                        } else {
-                                            &machine.recipe.ingredients[0].name
-                                        };
-                                        let mut menu_items_and_hints = Vec::new();
-                                        for recipe in self.editor.info().game_data.recipes.values()
-                                        {
-                                            if recipe.is_recycling() {
-                                                continue;
-                                            }
-                                            let can_replace = if machine.crafter.is_source() {
-                                                recipe.products.iter().any(|p| &p.name == item)
-                                            } else {
-                                                recipe.ingredients.iter().any(|p| &p.name == item)
-                                            };
-                                            if !can_replace {
-                                                continue;
-                                            }
-                                            let hint = if machine.crafter.is_source() {
-                                                format!(
-                                                    "({} ➡) ",
-                                                    recipe
-                                                        .ingredients
-                                                        .iter()
-                                                        .map(|i| &i.name)
-                                                        .join(" + ")
-                                                )
-                                            } else if recipe.products.len() == 1
-                                                && recipe.products[0].name.as_str()
-                                                    == recipe.name.as_str()
+                                        let lock =
+                                            if let MachineSnippet::Crafter(CrafterSnippet {
+                                                count_constraint: Some(constraint),
+                                                ..
+                                            }) = editor_machine.snippet()
                                             {
+                                                format!(
+                                                    "@[$lock:Count constrained to {constraint}]"
+                                                )
+                                            } else {
                                                 String::new()
-                                            } else {
-                                                format!(
-                                                    " (➡ {})",
-                                                    recipe
-                                                        .products
-                                                        .iter()
-                                                        .map(|i| &i.name)
-                                                        .join(" + ")
-                                                )
                                             };
-                                            for menu_item in
-                                                recipe_menu_items(self.editor.info(), recipe)
-                                            {
-                                                menu_items_and_hints
-                                                    .push((menu_item, hint.clone()));
-                                            }
-                                        }
-                                        let show_hints = !menu_items_and_hints
-                                            .iter()
-                                            .map(|(_, hint)| hint)
-                                            .all_equal();
-                                        self.replace_with_craft_options = menu_items_and_hints
-                                            .into_iter()
-                                            .map(|(menu_item, hint)| {
-                                                let menu_text = menu_item.text();
-                                                let text = if show_hints {
-                                                    if machine.crafter.is_source() {
-                                                        format!("{hint}{menu_text}")
-                                                    } else {
-                                                        format!("{menu_text}{hint}")
-                                                    }
-                                                } else {
-                                                    menu_text.to_string()
-                                                };
-                                                (menu_item, text)
-                                            })
-                                            .collect();
-
-                                        self.generation += 1;
-                                        if self.replace_with_craft_options.len() == 1 {
-                                            self.replace_with_craft_index = None;
-                                            let item = self.replace_with_craft_options.remove(0).0;
-                                            recipe_to_add = Some((
-                                                item.recipe().clone(),
-                                                item.crafter().cloned(),
-                                            ));
-                                        } else {
-                                            self.replace_with_craft_index = Some(i);
-                                        }
-                                    }
-                                }
-                                if self.replace_with_craft_index == Some(i) {
-                                    let mut value: Option<&RecipeMenuItem> = None;
-                                    ComboBox::new(("replace_source_item", self.generation), "")
-                                        .show_ui(ui, |ui| {
-                                            for (menu_item, item_text) in
-                                                &self.replace_with_craft_options
-                                            {
-                                                ui.selectable_value(
-                                                    &mut value,
-                                                    Some(menu_item),
-                                                    item_text,
-                                                );
-                                            }
-                                        });
-                                    if let Some(value) = value {
-                                        recipe_to_add = Some((
-                                            value.recipe().clone(),
-                                            value.crafter().cloned(),
-                                        ));
-                                        self.replace_with_craft_index = None;
-                                    }
-                                }
-
-                                if machine.crafter.is_sink() {
-                                    let r = ui.with_tooltip("Replace with a recycler", |ui| {
-                                        ui.button("Recycle")
-                                    });
-                                    if r.clicked() {
-                                        index_to_recycle = Some(i);
-                                    }
-                                }
-                            } else {
-                                // not source or sink
-                                let r = ui.button("Edit");
-                                if r.clicked() {
-                                    self.edit_machine_index = Some(i);
-                                    self.machine_count_constraint = match editor_machine.snippet() {
-                                        MachineSnippet::Source(_) | MachineSnippet::Sink(_) => {
-                                            unreachable!()
-                                        }
-                                        MachineSnippet::Crafter(crafter) => crafter
-                                            .count_constraint
-                                            .map(|c| c.to_string())
-                                            .unwrap_or_default(),
+                                        format!("{}{} × ", lock, rf(machine.crafter_count))
                                     };
-                                    self.num_beacons = machine.beacons.len().to_string();
-                                    self.focus_machine_constraint_input = true;
-                                }
+                                    let tooltip = if (machine.recipe.products.len() == 1
+                                        && machine.recipe.name.as_str()
+                                            == machine.recipe.products[0].name.as_str())
+                                        || machine.crafter.is_source_or_sink()
+                                    {
+                                        machine.crafter.name.to_string()
+                                    } else {
+                                        format!("{}({})", machine.crafter.name, machine.recipe.name)
+                                    };
+                                    let modules_text = if machine.modules.is_empty()
+                                        && machine.beacons.is_empty()
+                                    {
+                                        String::new()
+                                    } else {
+                                        let beacon_text = if machine.beacons.is_empty() {
+                                            String::new()
+                                        } else if machine.beacons.iter().all_equal() {
+                                            let modules =
+                                                module_counts(&machine.beacons[0].modules)
+                                                    .into_iter()
+                                                    .map(|(name, count)| {
+                                                        format!("{count} × {name}")
+                                                    })
+                                                    .join(",");
+                                            format!(
+                                                "{} × beacon({})",
+                                                machine.beacons.len(),
+                                                modules
+                                            )
+                                        } else {
+                                            machine
+                                                .beacons
+                                                .iter()
+                                                .map(|beacon| {
+                                                    let modules = module_counts(&beacon.modules)
+                                                        .into_iter()
+                                                        .map(|(name, count)| {
+                                                            format!("{count} × {name}")
+                                                        })
+                                                        .join(",");
+                                                    format!("beacon({modules})")
+                                                })
+                                                .join("\n")
+                                        };
+                                        let beacon_markup = if machine.beacons.is_empty() {
+                                            None
+                                        } else {
+                                            Some(format!(
+                                                "{}@[beacon:{}]",
+                                                machine.beacons.len(),
+                                                beacon_text
+                                            ))
+                                        };
+                                        let text = module_counts(&machine.modules)
+                                            .into_iter()
+                                            .map(|(name, count)| format!("{count}@[{name}:]"))
+                                            .chain(beacon_markup)
+                                            .join(",");
+                                        format!("[{text}]")
+                                    };
+                                    ui.rich_label(format!(
+                                        "{}{}@[{}.q{}:{}]{}",
+                                        if is_first { "" } else { "➡ " },
+                                        crafter_count,
+                                        machine.crafter.name,
+                                        machine.crafter.quality.0,
+                                        tooltip,
+                                        modules_text
+                                    ));
+                                    is_first = true;
+                                    Frame::new().fill(Color32::from_rgb(230, 255, 230)).show(
+                                        ui,
+                                        |ui| {
+                                            for stack in &item_speeds {
+                                                if stack.speed > Speed::ZERO {
+                                                    ui.rich_label(format!(
+                                                        "{}{} @[{}.q{}:]",
+                                                        if is_first { "➡ " } else { "+ " },
+                                                        stack.speed,
+                                                        stack.item,
+                                                        stack.quality.0,
+                                                    ));
+                                                    is_first = false;
+                                                }
+                                            }
+                                        },
+                                    );
 
-                                if ui.button("🗙").clicked() {
-                                    index_to_remove = Some(i);
-                                }
-                            }
-                        });
+                                    // if ui
+                                    //     .selectable_label(self.selected_machine == i, machine.io_text())
+                                    //     .clicked()
+                                    // {
+                                    //     self.selected_machine = i;
+                                    // }
+                                    ui.add_space(10.0);
+                                    if machine.crafter.is_source_or_sink() {
+                                        let r = ui.with_tooltip(
+                                            "Replace with a crafting machine",
+                                            |ui| ui.button("Craft"),
+                                        );
+                                        if r.clicked() {
+                                            if self.replace_with_craft_index == Some(i) {
+                                                self.replace_with_craft_index = None;
+                                            } else {
+                                                let item = if machine.crafter.is_source() {
+                                                    &machine.recipe.products[0].name
+                                                } else {
+                                                    &machine.recipe.ingredients[0].name
+                                                };
+                                                let mut menu_items_and_hints = Vec::new();
+                                                for recipe in
+                                                    self.editor.info().game_data.recipes.values()
+                                                {
+                                                    if recipe.is_recycling() {
+                                                        continue;
+                                                    }
+                                                    let can_replace = if machine.crafter.is_source()
+                                                    {
+                                                        recipe
+                                                            .products
+                                                            .iter()
+                                                            .any(|p| &p.name == item)
+                                                    } else {
+                                                        recipe
+                                                            .ingredients
+                                                            .iter()
+                                                            .any(|p| &p.name == item)
+                                                    };
+                                                    if !can_replace {
+                                                        continue;
+                                                    }
+                                                    let hint = if machine.crafter.is_source() {
+                                                        format!(
+                                                            "({} ➡) ",
+                                                            recipe
+                                                                .ingredients
+                                                                .iter()
+                                                                .map(|i| &i.name)
+                                                                .join(" + ")
+                                                        )
+                                                    } else if recipe.products.len() == 1
+                                                        && recipe.products[0].name.as_str()
+                                                            == recipe.name.as_str()
+                                                    {
+                                                        String::new()
+                                                    } else {
+                                                        format!(
+                                                            " (➡ {})",
+                                                            recipe
+                                                                .products
+                                                                .iter()
+                                                                .map(|i| &i.name)
+                                                                .join(" + ")
+                                                        )
+                                                    };
+                                                    for menu_item in recipe_menu_items(
+                                                        self.editor.info(),
+                                                        recipe,
+                                                    ) {
+                                                        menu_items_and_hints
+                                                            .push((menu_item, hint.clone()));
+                                                    }
+                                                }
+                                                let show_hints = !menu_items_and_hints
+                                                    .iter()
+                                                    .map(|(_, hint)| hint)
+                                                    .all_equal();
+                                                self.replace_with_craft_options =
+                                                    menu_items_and_hints
+                                                        .into_iter()
+                                                        .map(|(menu_item, hint)| {
+                                                            let menu_text = menu_item.text();
+                                                            let text = if show_hints {
+                                                                if machine.crafter.is_source() {
+                                                                    format!("{hint}{menu_text}")
+                                                                } else {
+                                                                    format!("{menu_text}{hint}")
+                                                                }
+                                                            } else {
+                                                                menu_text.to_string()
+                                                            };
+                                                            (menu_item, text)
+                                                        })
+                                                        .collect();
+
+                                                self.generation += 1;
+                                                if self.replace_with_craft_options.len() == 1 {
+                                                    self.replace_with_craft_index = None;
+                                                    let item =
+                                                        self.replace_with_craft_options.remove(0).0;
+                                                    recipe_to_add = Some((
+                                                        item.recipe().clone(),
+                                                        item.crafter().cloned(),
+                                                    ));
+                                                } else {
+                                                    self.replace_with_craft_index = Some(i);
+                                                }
+                                            }
+                                        }
+                                        if self.replace_with_craft_index == Some(i) {
+                                            let mut value: Option<&RecipeMenuItem> = None;
+                                            ComboBox::new(
+                                                ("replace_source_item", self.generation),
+                                                "",
+                                            )
+                                            .show_ui(
+                                                ui,
+                                                |ui| {
+                                                    for (menu_item, item_text) in
+                                                        &self.replace_with_craft_options
+                                                    {
+                                                        ui.selectable_value(
+                                                            &mut value,
+                                                            Some(menu_item),
+                                                            item_text,
+                                                        );
+                                                    }
+                                                },
+                                            );
+                                            if let Some(value) = value {
+                                                recipe_to_add = Some((
+                                                    value.recipe().clone(),
+                                                    value.crafter().cloned(),
+                                                ));
+                                                self.replace_with_craft_index = None;
+                                            }
+                                        }
+
+                                        if machine.crafter.is_sink() {
+                                            let r = ui
+                                                .with_tooltip("Replace with a recycler", |ui| {
+                                                    ui.button("Recycle")
+                                                });
+                                            if r.clicked() {
+                                                index_to_recycle = Some(i);
+                                            }
+                                        }
+                                    } else {
+                                        // not source or sink
+                                        let r = ui.button("Edit");
+                                        if r.clicked() {
+                                            self.edit_machine_index = Some(i);
+                                            self.machine_count_constraint =
+                                                match editor_machine.snippet() {
+                                                    MachineSnippet::Source(_)
+                                                    | MachineSnippet::Sink(_) => {
+                                                        unreachable!()
+                                                    }
+                                                    MachineSnippet::Crafter(crafter) => crafter
+                                                        .count_constraint
+                                                        .map(|c| c.to_string())
+                                                        .unwrap_or_default(),
+                                                };
+                                            self.num_beacons = machine.beacons.len().to_string();
+                                            self.focus_machine_constraint_input = true;
+                                        }
+
+                                        if ui.button("🗙").clicked() {
+                                            index_to_remove = Some(i);
+                                        }
+                                    }
+                                });
+                            });
                     }
                     if let Some(i) = index_to_remove {
                         self.saved = false;
@@ -428,7 +479,7 @@ impl MyApp {
                         self.saved = false;
                         self.alerts.clear();
                         self.editor
-                            .add_recycler(i, Some(&self.default_quality_module))
+                            .add_recycler(None, i, Some(&self.default_quality_module))
                             .or_warn();
                         self.after_machines_changed();
                     }
@@ -440,11 +491,20 @@ impl MyApp {
                 if let Some(i) = self.edit_machine_index {
                     if i < self.editor.machines().len() {
                         ui.horizontal(|ui| {
+                            let recipe_name = &self.editor.machines()[i].machine().recipe.name.0;
+                            let recipe_name = recipe_name
+                                .strip_suffix("-recycling")
+                                .unwrap_or(recipe_name);
+                            let quality = self.editor.machines()[i].machine().recipe_quality.0;
+                            let recipe_name = if quality > 0 {
+                                format!("{}.q{}", recipe_name, quality)
+                            } else {
+                                recipe_name.into()
+                            };
                             ui.rich_label(format!(
-                                "Edit machine: @[{}]*(@[{}.q{}]*)",
+                                "Edit machine: @[{}]*(@[{}]*)",
                                 self.editor.machines()[i].machine().crafter.name,
-                                &self.editor.machines()[i].machine().recipe.name,
-                                self.editor.machines()[i].machine().recipe_quality.0,
+                                recipe_name,
                             ));
                         });
 
@@ -484,6 +544,12 @@ impl MyApp {
                                         self.editor.set_crafter(i, &text).or_warn();
                                         self.after_machines_changed();
                                     }
+                                    let mut new_quality = Quality(0);
+                                    ui.quality_dropdown(
+                                        ("crafter_quality", self.generation),
+                                        "",
+                                        &mut new_quality,
+                                    );
                                 });
                             }
                             ui.horizontal(|ui| {
@@ -561,7 +627,8 @@ impl MyApp {
                                     if let Some(ii) = index_to_remove {
                                         self.saved = false;
                                         self.alerts.clear();
-                                        let r = self.editor.remove_module(i, ii).or_warn();
+                                        let batch = ui.input(|i| i.modifiers.shift);
+                                        let r = self.editor.remove_module(i, ii, batch).or_warn();
                                         if r.is_some() {
                                             self.after_machines_changed();
                                         }

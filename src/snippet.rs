@@ -28,6 +28,8 @@ pub struct SourceSinkSnippet {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct CrafterSnippet {
     pub crafter: CrafterName,
+    #[serde(default, skip_serializing_if = "Quality::is_zero")]
+    pub crafter_quality: Quality,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub modules: Vec<ItemNameAndQuality>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

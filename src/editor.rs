@@ -73,7 +73,8 @@ impl Editor {
             .crafters
             .get(name)
             .with_context(|| format!("crafter not found: {name:?}"))?
-            .clone();
+            .clone()
+            .with_quality(snippet.crafter_quality);
 
         let modules = snippet
             .modules
@@ -170,6 +171,7 @@ impl Editor {
 
     pub fn add_recycler(
         &mut self,
+        recycler_quality: Option<Quality>,
         index: usize,
         fill_module: Option<&Module>,
     ) -> anyhow::Result<()> {
@@ -196,6 +198,7 @@ impl Editor {
             &recipe.name,
             input.quality,
             Some(&"recycler".into()),
+            recycler_quality,
             fill_module,
         )?;
         Ok(())
@@ -206,6 +209,7 @@ impl Editor {
         recipe_name: &RecipeName,
         recipe_quality: Quality,
         crafter: Option<&CrafterName>,
+        crafter_quality: Option<Quality>,
         fill_module: Option<&Module>,
     ) -> anyhow::Result<()> {
         let recipe = self.info.game_data.recipe(recipe_name)?.clone();
@@ -222,6 +226,9 @@ impl Editor {
         } else {
             bail!("ambiguous crafter for {recipe:?}: {crafters:?}");
         };
+        let crafter_quality = crafter_quality
+            .or_else(|| self.info.config.crafter_qualities.get(&crafter).copied())
+            .unwrap_or(Quality(0));
 
         trace!("selected crafter: {crafter:?}");
         self.solved = false;
@@ -235,6 +242,7 @@ impl Editor {
             .with_context(|| format!("crafter not found: {crafter:?}"))?;
         let snippet = CrafterSnippet {
             crafter,
+            crafter_quality,
             modules: if let Some(module) = fill_module {
                 (0..crafter_info.module_inventory_size)
                     .map(|_| ItemNameAndQuality {
@@ -486,6 +494,7 @@ impl Editor {
         &mut self,
         machine_index: usize,
         module_index: usize,
+        batch: bool,
     ) -> anyhow::Result<()> {
         let machine = self
             .machines
@@ -497,12 +506,20 @@ impl Editor {
             }
             MachineSnippet::Crafter(snippet) => {
                 ensure!(module_index < snippet.modules.len(), "invalid module index");
-                snippet.modules.remove(module_index);
-                ensure!(
-                    module_index < machine.machine.modules.len(),
-                    "snippet-machine desync"
-                );
-                machine.machine.modules.remove(module_index);
+                if batch {
+                    let module_type = snippet.modules[module_index].clone();
+                    snippet.modules.retain(|m| m != &module_type);
+                    machine.machine.modules.retain(|m| {
+                        m.name.0 != *module_type.name.0 || m.quality != module_type.quality
+                    });
+                } else {
+                    snippet.modules.remove(module_index);
+                    ensure!(
+                        module_index < machine.machine.modules.len(),
+                        "snippet-machine desync"
+                    );
+                    machine.machine.modules.remove(module_index);
+                }
             }
         }
 

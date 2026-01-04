@@ -15,6 +15,7 @@ use {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Crafter {
     pub name: CrafterName,
+    pub quality: Quality,
     pub energy_usage: f64,
     pub crafting_speed: f64,
     #[serde(default)] // only for compatibility
@@ -34,6 +35,17 @@ impl Crafter {
 
     pub fn is_recycler(&self) -> bool {
         &self.name.0 == "recycler"
+    }
+
+    pub fn with_quality(self, quality: Quality) -> Self {
+        assert_eq!(self.quality, Quality(0));
+        Self {
+            name: self.name,
+            quality,
+            energy_usage: self.energy_usage,
+            crafting_speed: self.crafting_speed * (1. + 0.3 * quality.0 as f64),
+            module_inventory_size: self.module_inventory_size,
+        }
     }
 }
 
@@ -136,13 +148,14 @@ impl Machine {
         Machine {
             crafter: Crafter {
                 name: SOURCE_CRAFTER_NAME.clone(),
+                quality: Quality(0),
                 energy_usage: 0.0,
                 crafting_speed: 1.0,
                 module_inventory_size: 0,
             },
             crafter_count: 1.0,
             recipe: Recipe {
-                name: format!("{item}-source").into(),
+                name: (&*item.name.0).into(),
                 enabled: true,
                 category: SOURCE_RECIPE_CATEGORY.clone(),
                 ingredients: Vec::new(),
@@ -172,6 +185,7 @@ impl Machine {
         Machine {
             crafter: Crafter {
                 name: SINK_CRAFTER_NAME.clone(),
+                quality: Quality(0),
                 energy_usage: 0.0,
                 crafting_speed: 1.0,
                 module_inventory_size: 0,

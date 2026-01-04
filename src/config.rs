@@ -1,12 +1,15 @@
 use {
     crate::primitives::{CrafterName, Quality},
     serde::{Deserialize, Serialize},
+    std::collections::BTreeMap,
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     pub furnace_type: CrafterName,
     pub assembler_type: CrafterName,
+    #[serde(default)]
+    pub crafter_qualities: BTreeMap<CrafterName, Quality>,
 
     #[serde(default = "default_module_tier")]
     pub speed_module_tier: u32,

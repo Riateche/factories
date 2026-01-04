@@ -33,6 +33,7 @@ pub fn item_icon_url(name: &ItemName) -> String {
 }
 
 pub fn recipe_icon_url(name: &RecipeName) -> String {
+    let name = name.0.strip_suffix("-recycling").unwrap_or(&name.0);
     let path = env::current_dir()
         .unwrap()
         .join(format!("icons/factorio/{name}.png"));
@@ -208,14 +209,15 @@ impl MyApp {
     ) -> anyhow::Result<()> {
         self.saved = false;
         self.alerts.clear();
-        for quality in Quality::ALL {
-            self.editor.add_crafter(
-                recipe_name,
-                quality,
-                crafter,
-                Some(&self.default_quality_module),
-            )?;
-        }
+        //for quality in Quality::ALL {
+        self.editor.add_crafter(
+            recipe_name,
+            Quality(0),
+            crafter,
+            None,
+            Some(&self.default_quality_module),
+        )?;
+        //}
         self.recipe_search_text.clear();
         self.after_machines_changed();
         Ok(())
