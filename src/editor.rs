@@ -23,8 +23,12 @@ use {
     tracing::{trace, warn},
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct EditorMachineId(pub u64);
+
 #[derive(Debug, Clone)]
 pub struct EditorMachine {
+    id: EditorMachineId,
     snippet: MachineSnippet,
     machine: Machine,
 }
@@ -36,6 +40,10 @@ impl EditorMachine {
 
     pub fn machine(&self) -> &Machine {
         &self.machine
+    }
+
+    pub fn id(&self) -> EditorMachineId {
+        self.id
     }
 }
 
@@ -125,8 +133,9 @@ impl Editor {
     pub fn load_snippet(&mut self, path: impl AsRef<Path>) -> anyhow::Result<()> {
         let snippet = serde_json::from_str::<Snippet>(&fs_err::read_to_string(path)?)?;
         let mut machines = Vec::new();
-        for machine in snippet.machines {
+        for (i, machine) in snippet.machines.into_iter().enumerate() {
             machines.push(EditorMachine {
+                id: EditorMachineId(i as u64),
                 snippet: machine.clone(),
                 machine: self.create_machine(&machine)?,
             });
@@ -148,6 +157,13 @@ impl Editor {
         self.solved = true;
     }
 
+    fn next_machine_id(&self) -> EditorMachineId {
+        (0..)
+            .map(EditorMachineId)
+            .find(|id| self.machines.iter().all(|m| &m.id != id))
+            .unwrap()
+    }
+
     fn add_source(&mut self, item: &ItemNameAndQuality) -> anyhow::Result<()> {
         if !self.info.all_items.contains(&item.name) {
             bail!("unknown item: {item:?}");
@@ -155,7 +171,12 @@ impl Editor {
         self.solved = false;
         let snippet = MachineSnippet::Source(SourceSinkSnippet { item: item.clone() });
         let machine = self.create_machine(&snippet)?;
-        self.machines.push(EditorMachine { snippet, machine });
+        let id = self.next_machine_id();
+        self.machines.push(EditorMachine {
+            id,
+            snippet,
+            machine,
+        });
         Ok(())
     }
 
@@ -166,7 +187,12 @@ impl Editor {
         self.solved = false;
         let snippet = MachineSnippet::Sink(SourceSinkSnippet { item: item.clone() });
         let machine = self.create_machine(&snippet)?;
-        self.machines.push(EditorMachine { snippet, machine });
+        let id = self.next_machine_id();
+        self.machines.push(EditorMachine {
+            id,
+            snippet,
+            machine,
+        });
         Ok(())
     }
 
@@ -175,7 +201,7 @@ impl Editor {
         recycler_quality: Option<Quality>,
         index: usize,
         fill_module: Option<&Module>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<EditorMachineId> {
         let machine = self.machines.get(index).context("invalid index")?;
         ensure!(machine.machine.crafter.is_sink(), "not a sink");
         let input = machine
@@ -195,14 +221,14 @@ impl Editor {
             .with_context(|| format!("recyling recipe not found for {:?}", input.item))?
             .clone();
 
-        self.add_crafter(
+        let id = self.add_crafter(
             &recipe.name,
             input.quality,
             Some(&"recycler".into()),
             recycler_quality,
             fill_module,
         )?;
-        Ok(())
+        Ok(id)
     }
 
     pub fn add_crafter(
@@ -212,7 +238,7 @@ impl Editor {
         crafter: Option<&CrafterName>,
         crafter_quality: Option<Quality>,
         fill_module: Option<&Module>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<EditorMachineId> {
         let recipe = self.info.game_data.recipe(recipe_name)?.clone();
         let crafters = self
             .info
@@ -261,7 +287,12 @@ impl Editor {
         }
         .into();
         let machine = self.create_machine(&snippet)?;
-        self.machines.push(EditorMachine { snippet, machine });
+        let id = self.next_machine_id();
+        self.machines.push(EditorMachine {
+            id,
+            snippet,
+            machine,
+        });
 
         if add_auto_constraint {
             if let Some(product) = recipe.products.first() {
@@ -275,7 +306,7 @@ impl Editor {
             }
         }
         self.after_machines_changed();
-        Ok(())
+        Ok(id)
     }
 
     pub fn remove_machine(&mut self, index: usize) -> anyhow::Result<()> {
@@ -395,7 +426,9 @@ impl Editor {
                 ..snippet.clone()
             });
             let machine = self.create_machine(&new_snippet)?;
+            let id = self.next_machine_id();
             self.machines.push(EditorMachine {
+                id,
                 snippet: new_snippet,
                 machine,
             });
@@ -520,10 +553,11 @@ impl Editor {
         }
     }
 
-    pub fn add_module(
+    pub fn add_modules(
         &mut self,
         machine_index: usize,
         module: &ItemNameAndQuality,
+        count: u64,
     ) -> anyhow::Result<()> {
         let machine = self
             .machines
@@ -551,7 +585,9 @@ impl Editor {
             }
         }
 
-        if machine.machine.crafter.module_inventory_size <= machine.machine.modules.len() as u64 {
+        if machine.machine.crafter.module_inventory_size
+            < machine.machine.modules.len() as u64 + count
+        {
             bail!("no more space for modules");
         }
         match &mut machine.snippet {
@@ -559,11 +595,13 @@ impl Editor {
                 bail!("modules are not supported for source and sink")
             }
             MachineSnippet::Crafter(snippet) => {
-                snippet.modules.push(ItemNameAndQuality {
-                    name: module.name.as_str().into(),
-                    quality: module.quality,
-                });
-                machine.machine.modules.push(module.clone());
+                for _ in 0..count {
+                    snippet.modules.push(ItemNameAndQuality {
+                        name: module.name.as_str().into(),
+                        quality: module.quality,
+                    });
+                    machine.machine.modules.push(module.clone());
+                }
             }
         }
 

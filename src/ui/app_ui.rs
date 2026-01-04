@@ -15,7 +15,10 @@ use {
     eframe::egui::{self, Color32, ComboBox, Frame, Key},
     egui::{Response, ScrollArea, TextEdit, Ui, Widget},
     itertools::Itertools,
-    std::time::{Duration, Instant},
+    std::{
+        cmp::min,
+        time::{Duration, Instant},
+    },
 };
 
 impl MyApp {
@@ -58,13 +61,12 @@ impl MyApp {
                                 }
 
                                 if let Some(item) = drop_down_response.option_selected.cloned() {
-                                    self.add_crafter(item.recipe(), item.crafter()).or_warn();
+                                    self.add_crafter(item.recipe(), item.crafter());
                                 } else if drop_down_response.enter_pressed {
                                     self.add_crafter(
                                         &self.recipe_search_text.as_str().into(),
                                         None,
-                                    )
-                                    .or_warn();
+                                    );
                                 }
                             });
                         });
@@ -144,6 +146,7 @@ impl MyApp {
                 });
 
                 ui.heading("Machines");
+                let edit_machine_index = self.edit_machine_id.and_then(|id| self.editor.machines().iter().position(|m| m.id() == id));
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     if self.editor.machines().is_empty() {
                         ui.label("No machines.");
@@ -152,12 +155,12 @@ impl MyApp {
                     let mut index_to_recycle = None;
                     let mut recipe_to_add: Option<(RecipeName, Option<CrafterName>)> = None;
                     for (i, editor_machine) in self.editor.machines().iter().enumerate() {
-                        let color = if Some(i) == self.edit_machine_index {
+                        let color = if Some(i) == edit_machine_index {
                             Color32::from_rgb(230, 230, 255)
                         } else {
                             Color32::from_rgb(255, 255, 255)
                         };
-                        let margin = if Some(i) == self.edit_machine_index {
+                        let margin = if Some(i) == edit_machine_index {
                             5
                         } else {
                             0
@@ -454,7 +457,7 @@ impl MyApp {
                                         // not source or sink
                                         let r = ui.button("Edit");
                                         if r.clicked() {
-                                            self.edit_machine_index = Some(i);
+                                            self.edit_machine_id = Some(editor_machine.id());
                                             self.machine_count_constraint =
                                                 match editor_machine.snippet() {
                                                     MachineSnippet::Source(_)
@@ -486,15 +489,16 @@ impl MyApp {
                     if let Some(i) = index_to_recycle {
                         self.saved = false;
                         self.alerts.clear();
-                        self.editor.add_recycler(None, i, None).or_warn();
+                        let id = self.editor.add_recycler(None, i, None).or_warn();
+                        self.edit_machine_id = id;
                         self.after_machines_changed();
                     }
                     if let Some((recipe, crafter)) = recipe_to_add {
-                        self.add_crafter(&recipe, crafter.as_ref()).or_warn();
+                        self.add_crafter(&recipe, crafter.as_ref());
                     }
                 });
 
-                if let Some(i) = self.edit_machine_index {
+                if let Some(i) = edit_machine_index {
                     if i < self.editor.machines().len() {
                         ui.horizontal(|ui| {
                             let recipe_name = &self.editor.machines()[i].machine().recipe.name.0;
@@ -715,12 +719,12 @@ impl MyApp {
                                                 let num_added = if ui.input(|i| i.modifiers.shift) {
                                                     num_empty_module_slots
                                                 } else {
-                                                    1
+                                                    min(num_empty_module_slots, 1)
                                                 };
-                                                for _ in 0..num_added {
+                                                if num_added > 0 {
                                                     self.saved = false;
                                                     self.alerts.clear();
-                                                    self.editor.add_module(i, module).or_warn();
+                                                    self.editor.add_modules(i, module, num_added).or_warn();
                                                     added = true;
                                                 }
                                             }
@@ -812,7 +816,7 @@ impl MyApp {
                             }
 
                             if ui.button("Cancel").clicked() {
-                                self.edit_machine_index = None;
+                                self.edit_machine_id = None;
                             }
                         });
                     }
@@ -862,7 +866,7 @@ impl MyApp {
                                     machine.machine().recipe.name,
                                 ));
                                 if ui.button("Edit").clicked() {
-                                    self.edit_machine_index = Some(i);
+                                    self.edit_machine_id = Some(machine.id());
                                     self.machine_count_constraint = count.to_string();
                                     self.num_beacons = machine.machine().beacons.len().to_string();
                                     self.focus_machine_constraint_input = true;

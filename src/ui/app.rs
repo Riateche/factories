@@ -1,7 +1,7 @@
 use {
     super::drop_down::DropDownOption,
     crate::{
-        editor::Editor,
+        editor::{Editor, EditorMachineId},
         flowchart,
         game_data::Recipe,
         info::Info,
@@ -82,7 +82,7 @@ pub struct MyApp {
     pub item_speed_contraint_speed: String,
 
     // Edit machine
-    pub edit_machine_index: Option<usize>,
+    pub edit_machine_id: Option<EditorMachineId>,
     pub machine_count_constraint: String,
     pub focus_machine_constraint_input: bool,
     pub num_beacons: String,
@@ -170,7 +170,7 @@ impl MyApp {
             saved: false,
             confirm_delete: None,
             generation: 0,
-            edit_machine_index: None,
+            edit_machine_id: None,
             replace_with_craft_options: Vec::new(),
             replace_with_craft_index: None,
             belt_speeds,
@@ -189,18 +189,16 @@ impl MyApp {
         Ok(app)
     }
 
-    pub fn add_crafter(
-        &mut self,
-        recipe_name: &RecipeName,
-        crafter: Option<&CrafterName>,
-    ) -> anyhow::Result<()> {
+    pub fn add_crafter(&mut self, recipe_name: &RecipeName, crafter: Option<&CrafterName>) {
         self.saved = false;
         self.alerts.clear();
-        self.editor
-            .add_crafter(recipe_name, Quality(0), crafter, None, None)?;
+        let id = self
+            .editor
+            .add_crafter(recipe_name, Quality(0), crafter, None, None)
+            .or_warn();
+        self.edit_machine_id = id;
         self.recipe_search_text.clear();
         self.after_machines_changed();
-        Ok(())
     }
 
     pub fn save_chart(&self) -> anyhow::Result<()> {
