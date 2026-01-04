@@ -192,7 +192,7 @@ impl Machine {
             },
             crafter_count: 1.0,
             recipe: Recipe {
-                name: format!("{item}-sink").into(),
+                name: (&*item.name.0).into(),
                 enabled: true,
                 category: SINK_RECIPE_CATEGORY.clone(),
                 ingredients: vec![Ingredient {

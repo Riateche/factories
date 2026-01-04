@@ -1,7 +1,7 @@
 use {
     super::app::icon_url,
     crate::primitives::Quality,
-    eframe::egui::{self, Color32, ComboBox, Response, Sense, Ui, WidgetText},
+    eframe::egui::{self, vec2, Color32, ComboBox, Image, Response, Sense, Ui, Widget, WidgetText},
     regex::Regex,
     std::hash::Hash,
     tracing::error,
@@ -13,8 +13,8 @@ pub trait UiExt {
         tooltip: &str,
         add_contents: impl FnOnce(&mut Ui) -> Response,
     ) -> Response;
-    fn icon(&mut self, icon: &str, tooltip: Option<&str>) -> Response;
-    fn item_icon(&mut self, item: &str, tooltip: Option<&str>) -> Response;
+    fn icon(&mut self, icon: &str, tooltip: Option<&str>, scale: f32) -> Response;
+    fn item_icon(&mut self, item: &str, tooltip: Option<&str>, scale: f32) -> Response;
 
     /// Examples:
     /// @[iron-plate] - item icon
@@ -34,9 +34,12 @@ pub trait UiExt {
 }
 
 impl UiExt for Ui {
-    fn icon(&mut self, icon: &str, tooltip: Option<&str>) -> Response {
+    fn icon(&mut self, icon: &str, tooltip: Option<&str>, scale: f32) -> Response {
         let ui = self;
-        let r = ui.image(icon_url(icon)).interact(Sense::click());
+        let r = Image::new(icon_url(icon))
+            .fit_to_exact_size(vec2(24. * scale, 24. * scale))
+            .ui(ui)
+            .interact(Sense::click());
         if let Some(tooltip) = tooltip {
             if r.contains_pointer() {
                 egui::show_tooltip(ui.ctx(), ui.layer_id(), egui::Id::new(tooltip), |ui| {
@@ -47,8 +50,8 @@ impl UiExt for Ui {
         r
     }
 
-    fn item_icon(&mut self, item: &str, tooltip: Option<&str>) -> Response {
-        self.icon(&format!("factorio/{item}"), tooltip)
+    fn item_icon(&mut self, item: &str, tooltip: Option<&str>, scale: f32) -> Response {
+        self.icon(&format!("factorio/{item}"), tooltip, scale)
     }
 
     fn rich_label(&mut self, text: impl Into<String>) -> Response {
@@ -85,9 +88,9 @@ impl UiExt for Ui {
                     r |= ui.label(plain_text);
                 }
                 if let Some(icon_remaining) = icon.strip_prefix('$') {
-                    r |= ui.icon(icon_remaining, Some(tooltip.unwrap_or(icon_remaining)));
+                    r |= ui.icon(icon_remaining, Some(tooltip.unwrap_or(icon_remaining)), 1.);
                 } else if let Some((icon, quality)) = icon.split_once(".q") {
-                    r |= ui.item_icon(icon, Some(tooltip.unwrap_or(icon)));
+                    r |= ui.item_icon(icon, Some(tooltip.unwrap_or(icon)), 1.);
                     let quality = quality.parse::<u32>().unwrap_or_else(|_| {
                         error!("invalid quality in rich label: {quality:?}");
                         0
@@ -96,10 +99,11 @@ impl UiExt for Ui {
                         r |= ui.item_icon(
                             &format!("quality{quality}"),
                             Some(&format!("Quality {quality}")),
+                            0.5,
                         );
                     }
                 } else {
-                    r |= ui.item_icon(icon, Some(tooltip.unwrap_or(icon)));
+                    r |= ui.item_icon(icon, Some(tooltip.unwrap_or(icon)), 1.);
                 }
                 if capture.get(4).is_some() {
                     r |= ui.label(icon);
@@ -137,10 +141,21 @@ impl UiExt for Ui {
         value: &mut Quality,
     ) {
         let ui = self;
-        ComboBox::new(id_salt, label).show_ui(ui, |ui| {
-            for quality in Quality::ALL {
-                ui.selectable_value(value, quality, quality.0.to_string());
-            }
-        });
+        ui.item_icon(&format!("quality{}", value.0), None, 1.);
+        ComboBox::new(id_salt, label)
+            .selected_text(value.0.to_string())
+            .width(32.)
+            .show_ui(ui, |ui| {
+                ui.horizontal(|ui| {
+                    for quality in Quality::ALL {
+                        if ui
+                            .item_icon(&format!("quality{}", quality.0), None, 1.0)
+                            .clicked()
+                        {
+                            *value = quality;
+                        }
+                    }
+                });
+            });
     }
 }

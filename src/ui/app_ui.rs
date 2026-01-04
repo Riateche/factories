@@ -7,7 +7,7 @@ use {
     crate::{
         machine::Beacon,
         module_counts,
-        primitives::{CrafterName, Quality, RecipeName, Speed},
+        primitives::{CrafterName, RecipeName, Speed},
         rf,
         snippet::{CrafterSnippet, MachineSnippet},
         ResultExtOrWarn,
@@ -144,7 +144,6 @@ impl MyApp {
                 });
 
                 ui.heading("Machines");
-                //let show_names = ui.input(|i| i.modifiers.alt);
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     if self.editor.machines().is_empty() {
                         ui.label("No machines.");
@@ -169,22 +168,21 @@ impl MyApp {
                             .show(ui, |ui| {
                                 let machine = editor_machine.machine();
                                 ui.horizontal(|ui| {
-                                    let item_speeds = machine.item_speeds().collect_vec();
+                                    let input_speeds = machine.input_speeds().collect_vec();
+                                    let output_speeds = machine.output_speeds();
                                     let mut is_first = true;
                                     Frame::new().fill(Color32::from_rgb(255, 230, 230)).show(
                                         ui,
                                         |ui| {
-                                            for stack in &item_speeds {
-                                                if stack.speed < Speed::ZERO {
-                                                    ui.rich_label(format!(
-                                                        "{}{} @[{}.q{}:]",
-                                                        if is_first { "" } else { "+ " },
-                                                        -stack.speed,
-                                                        stack.item,
-                                                        stack.quality.0,
-                                                    ));
-                                                    is_first = false;
-                                                }
+                                            for stack in &input_speeds {
+                                                ui.rich_label(format!(
+                                                    "{}{} @[{}.q{}:]",
+                                                    if is_first { "" } else { "+ " },
+                                                    -stack.speed,
+                                                    stack.item,
+                                                    stack.quality.0,
+                                                ));
+                                                is_first = false;
                                             }
                                         },
                                     );
@@ -278,17 +276,15 @@ impl MyApp {
                                     Frame::new().fill(Color32::from_rgb(230, 255, 230)).show(
                                         ui,
                                         |ui| {
-                                            for stack in &item_speeds {
-                                                if stack.speed > Speed::ZERO {
-                                                    ui.rich_label(format!(
-                                                        "{}{} @[{}.q{}:]",
-                                                        if is_first { "➡ " } else { "+ " },
-                                                        stack.speed,
-                                                        stack.item,
-                                                        stack.quality.0,
-                                                    ));
-                                                    is_first = false;
-                                                }
+                                            for stack in &output_speeds {
+                                                ui.rich_label(format!(
+                                                    "{}{} @[{}.q{}:]",
+                                                    if is_first { "➡ " } else { "+ " },
+                                                    stack.speed,
+                                                    stack.item,
+                                                    stack.quality.0,
+                                                ));
+                                                is_first = false;
                                             }
                                         },
                                     );
@@ -478,9 +474,7 @@ impl MyApp {
                     if let Some(i) = index_to_recycle {
                         self.saved = false;
                         self.alerts.clear();
-                        self.editor
-                            .add_recycler(None, i, Some(&self.default_quality_module))
-                            .or_warn();
+                        self.editor.add_recycler(None, i, None).or_warn();
                         self.after_machines_changed();
                     }
                     if let Some((recipe, crafter)) = recipe_to_add {
@@ -521,6 +515,11 @@ impl MyApp {
                                     ui.label("Change crafter:");
                                     let mut text =
                                         self.editor.machines()[i].machine().crafter.name.clone();
+                                    ui.item_icon(
+                                        &self.editor.machines()[i].machine().crafter.name.0,
+                                        None,
+                                        1.,
+                                    );
                                     ComboBox::new(("change_crafter", self.generation), "")
                                         .selected_text(
                                             self.editor.machines()[i]
@@ -544,14 +543,49 @@ impl MyApp {
                                         self.editor.set_crafter(i, &text).or_warn();
                                         self.after_machines_changed();
                                     }
-                                    let mut new_quality = Quality(0);
+                                    let mut new_crafter_quality =
+                                        self.editor.machines()[i].machine().crafter.quality;
                                     ui.quality_dropdown(
                                         ("crafter_quality", self.generation),
                                         "",
-                                        &mut new_quality,
+                                        &mut new_crafter_quality,
                                     );
+                                    if new_crafter_quality
+                                        != self.editor.machines()[i].machine().crafter.quality
+                                    {
+                                        self.saved = false;
+                                        self.alerts.clear();
+                                        self.editor
+                                            .set_crafter_quality(i, new_crafter_quality)
+                                            .or_warn();
+                                        self.after_machines_changed();
+                                    }
                                 });
                             }
+                            ui.horizontal(|ui| {
+                                ui.label("Recipe quality:");
+                                let mut new_recipe_quality =
+                                    self.editor.machines()[i].machine().recipe_quality;
+                                ui.quality_dropdown(
+                                    ("recipe_quality", self.generation),
+                                    "",
+                                    &mut new_recipe_quality,
+                                );
+                                if new_recipe_quality
+                                    != self.editor.machines()[i].machine().recipe_quality
+                                {
+                                    self.saved = false;
+                                    self.alerts.clear();
+                                    self.editor
+                                        .set_recipe_quality(i, new_recipe_quality)
+                                        .or_warn();
+                                    self.after_machines_changed();
+                                }
+
+                                if ui.button("Add all").clicked() {
+                                    self.editor.duplicate_for_all_qualities(i).or_warn();
+                                }
+                            });
                             ui.horizontal(|ui| {
                                 let label = ui.label("Set machine count constraint:");
                                 let text_response =
@@ -621,7 +655,7 @@ impl MyApp {
                                         ui.with_tooltip("Empty module slot", |ui| ui.label("🚫"));
                                     }
                                     if !self.editor.machines()[i].machine().modules.is_empty() {
-                                        ui.label("(Click on module to remove it)");
+                                        ui.label("(Click on module to remove it, hold shift to remove all)");
                                     }
 
                                     if let Some(ii) = index_to_remove {
