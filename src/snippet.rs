@@ -49,7 +49,7 @@ pub struct Snippet {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
-#[serde(transparent)]
 pub struct BeaconSnippet {
+    pub quality: Quality,
     pub modules: Vec<ModuleName>,
 }

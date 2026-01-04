@@ -5,9 +5,9 @@ use {
         ui_ext::UiExt,
     },
     crate::{
-        machine::Beacon,
+        machine::{Beacon, ModuleType},
         module_counts,
-        primitives::{CrafterName, RecipeName, Speed},
+        primitives::{CrafterName, ItemNameAndQuality, ModuleName, Quality, RecipeName},
         rf,
         snippet::{CrafterSnippet, MachineSnippet},
         ResultExtOrWarn,
@@ -220,6 +220,11 @@ impl MyApp {
                                         let beacon_text = if machine.beacons.is_empty() {
                                             String::new()
                                         } else if machine.beacons.iter().all_equal() {
+                                            let beacon_quality_text = if machine.beacons[0].quality.0 > 0 {
+                                                format!(".q{}", machine.beacons[0].quality.0)
+                                            } else {
+                                                String::new()
+                                            };
                                             let modules =
                                                 module_counts(&machine.beacons[0].modules)
                                                     .into_iter()
@@ -228,8 +233,9 @@ impl MyApp {
                                                     })
                                                     .join(",");
                                             format!(
-                                                "{} × beacon({})",
+                                                "{} × beacon{}({})",
                                                 machine.beacons.len(),
+                                                beacon_quality_text,
                                                 modules
                                             )
                                         } else {
@@ -237,13 +243,18 @@ impl MyApp {
                                                 .beacons
                                                 .iter()
                                                 .map(|beacon| {
+                                                    let beacon_quality_text = if beacon.quality.0 > 0 {
+                                                        format!(".q{}", beacon.quality.0)
+                                                    } else {
+                                                        String::new()
+                                                    };
                                                     let modules = module_counts(&beacon.modules)
                                                         .into_iter()
                                                         .map(|(name, count)| {
                                                             format!("{count} × {name}")
                                                         })
                                                         .join(",");
-                                                    format!("beacon({modules})")
+                                                    format!("beacon{}({})", beacon_quality_text, modules)
                                                 })
                                                 .join("\n")
                                         };
@@ -251,8 +262,9 @@ impl MyApp {
                                             None
                                         } else {
                                             Some(format!(
-                                                "{}@[beacon:{}]",
+                                                "{}@[beacon.q{}:{}]",
                                                 machine.beacons.len(),
+                                                machine.beacons[0].quality.0,
                                                 beacon_text
                                             ))
                                         };
@@ -547,7 +559,7 @@ impl MyApp {
                                         self.editor.machines()[i].machine().crafter.quality;
                                     ui.quality_dropdown(
                                         ("crafter_quality", self.generation),
-                                        "",
+                                        Some("Crafter quality"),
                                         &mut new_crafter_quality,
                                     );
                                     if new_crafter_quality
@@ -568,7 +580,7 @@ impl MyApp {
                                     self.editor.machines()[i].machine().recipe_quality;
                                 ui.quality_dropdown(
                                     ("recipe_quality", self.generation),
-                                    "",
+                                    Some("Recipe quality"),
                                     &mut new_recipe_quality,
                                 );
                                 if new_recipe_quality
@@ -669,28 +681,30 @@ impl MyApp {
                                     }
                                 });
 
-                                if num_empty_module_slots > 0 {
-                                    ui.horizontal(|ui| {
-                                        ui.label("Add module:");
-                                        let mut added = false;
-                                        let mut allowed_modules = vec![&self.default_speed_module];
-                                        if self.editor.machines()[i]
-                                            .machine()
-                                            .recipe
-                                            .allowed_effects
-                                            .productivity
-                                        {
-                                            allowed_modules.push(&self.default_productivity_module);
-                                        }
-                                        if self.editor.machines()[i]
-                                            .machine()
-                                            .recipe
-                                            .allowed_effects
-                                            .quality
-                                        {
-                                            allowed_modules.push(&self.default_quality_module);
-                                        }
-                                        for module in allowed_modules {
+                                ui.horizontal(|ui| {
+                                    ui.label("Add module:");
+                                    let mut added = false;
+                                    let mut allowed_modules = vec![ModuleType::Speed];
+                                    if self.editor.machines()[i]
+                                        .machine()
+                                        .recipe
+                                        .allowed_effects
+                                        .productivity
+                                    {
+                                        allowed_modules.push(ModuleType::Productivity);
+                                    }
+                                    if self.editor.machines()[i]
+                                        .machine()
+                                        .recipe
+                                        .allowed_effects
+                                        .quality
+                                    {
+                                        allowed_modules.push(ModuleType::Quality);
+                                    }
+                                    for module_type in allowed_modules {
+                                        let module = self.selected_modules.get_mut(&module_type).unwrap();
+                                        ui.scope(|ui| {
+                                            ui.spacing_mut().item_spacing.x = 0.;
                                             if ui
                                                 .rich_label(format!(
                                                     "@[{}.q{}:]",
@@ -710,23 +724,56 @@ impl MyApp {
                                                     added = true;
                                                 }
                                             }
-                                        }
-                                        ui.label("(Hold Shift to fill)");
-                                        if added {
-                                            self.after_machines_changed();
-                                        }
-                                    });
-                                }
+
+                                            ComboBox::new(("add_module", module_type), "")
+                                                .selected_text("")
+                                                .width(16.)
+                                                .show_ui(ui, |ui| {
+                                                    for item in module_type.module_items() {
+                                                        ui.horizontal(|ui| {
+                                                            if ui.item_icon(&item.0, Some(&item.0), 1.0).clicked() {
+                                                                *module = ItemNameAndQuality {
+                                                                    name: item.clone(),
+                                                                    quality: Quality(0),
+                                                                };
+                                                            }
+                                                            for quality in Quality::ALL {
+                                                                if ui
+                                                                    .item_icon(&format!("quality{}", quality.0), Some(&format!("{} with quality {}", item.0, quality.0)), 1.)
+                                                                    .clicked()
+                                                                {
+                                                                    *module = ItemNameAndQuality {
+                                                                        name: item.clone(),
+                                                                        quality,
+                                                                    };
+                                                                }
+                                                            }
+                                                        });
+                                                    }
+                                                });
+                                        });
+                                    }
+                                    ui.label("(Hold Shift to fill)");
+                                    if added {
+                                        self.after_machines_changed();
+                                    }
+                                });
+
                                 ui.horizontal(|ui| {
-                                    let label = ui.rich_label(format!(
-                                        "Number of @[beacon:](2@[{}.q{}:]) per machine:",
-                                        &self.default_speed_module.name,
-                                        self.default_speed_module.quality.0,
-                                    ));
+                                    let module = self.selected_modules.get(&ModuleType::Speed).unwrap();
+                                    ui.scope(|ui| {
+                                        ui.spacing_mut().item_spacing.x = 0.;
+                                        ui.rich_label("Number of @[beacon:]");
+                                        ui.quality_dropdown("beacon_quality", Some("Beacon quality"), &mut self.beacon_quality);
+                                        ui.rich_label(format!(
+                                            "(2@[{}.q{}:]) per machine:",
+                                            &module.name,
+                                            module.quality.0,
+                                        ));
+                                    });
                                     let text_response = TextEdit::singleline(&mut self.num_beacons)
                                         .desired_width(50.0)
-                                        .ui(ui)
-                                        .labelled_by(label.id);
+                                        .ui(ui);
                                     if ui.button("Set").clicked()
                                         || (text_response.lost_focus()
                                             && ui.input(|i| i.key_pressed(Key::Enter)))
@@ -736,14 +783,21 @@ impl MyApp {
                                         {
                                             self.saved = false;
                                             self.alerts.clear();
+                                            let module = self.editor
+                                                .info()
+                                                .modules
+                                                .get(&ModuleName(module.name.0.to_string()))
+                                                .unwrap()
+                                                .with_quality(module.quality);
                                             self.editor
                                                 .set_beacons(
                                                     i,
                                                     (0..num_beacons)
                                                         .map(|_| Beacon {
+                                                            quality: self.beacon_quality,
                                                             modules: (0..2)
                                                                 .map(|_| {
-                                                                    self.default_speed_module
+                                                                    module
                                                                         .clone()
                                                                 })
                                                                 .collect_vec(),

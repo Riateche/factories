@@ -5,3 +5,12 @@ furnace_type = "steel-furnace"
 
 # "assembling-machine-1", "assembling-machine-2" or "assembling-machine-3"
 assembler_type = "assembling-machine-2"
+
+[crafter_qualities]
+assembling-machine-3 = 5
+recycler = 3
+
+[modules]
+speed = "speed-module.q3"
+quality = "quality-module-3.q5"
+productivity = "productivity-module-2"

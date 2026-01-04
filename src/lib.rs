@@ -53,8 +53,13 @@ where
 fn module_counts(modules: &[Module]) -> BTreeMap<String, usize> {
     let mut module_counts = BTreeMap::<_, usize>::new();
     for module in modules {
+        let quality_text = if module.quality.0 > 0 {
+            format!(".q{}", module.quality.0)
+        } else {
+            String::new()
+        };
         *module_counts
-            .entry(format!("{}.q{}", module.name, module.quality.0))
+            .entry(format!("{}{}", module.name, quality_text))
             .or_default() += 1;
     }
     module_counts

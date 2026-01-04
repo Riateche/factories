@@ -4,7 +4,8 @@ use {
         machine::{Beacon, ItemSpeed, Machine, Module, ModuleType},
         module_counts,
         primitives::{
-            Amount, CrafterName, ItemNameAndQuality, MachineCount, Quality, RecipeName, Speed,
+            Amount, CrafterName, ItemNameAndQuality, MachineCount, ModuleName, Quality, RecipeName,
+            Speed,
         },
         rf,
         snippet::{BeaconSnippet, CrafterSnippet, MachineSnippet, Snippet, SourceSinkSnippet},
@@ -87,9 +88,10 @@ fn create_crafter(info: &Info, snippet: &CrafterSnippet) -> anyhow::Result<Machi
                 .transpose_into_fallible()
                 .cloned()
                 .collect()
+                .map(|modules| (beacon.quality, modules))
         })
         .transpose_into_fallible()
-        .map(|modules| Ok(Beacon { modules }))
+        .map(|(quality, modules)| Ok(Beacon { quality, modules }))
         .collect()?;
 
     Ok(Machine {
@@ -518,11 +520,23 @@ impl Editor {
         }
     }
 
-    pub fn add_module(&mut self, machine_index: usize, module: &Module) -> anyhow::Result<()> {
+    pub fn add_module(
+        &mut self,
+        machine_index: usize,
+        module: &ItemNameAndQuality,
+    ) -> anyhow::Result<()> {
         let machine = self
             .machines
             .get_mut(machine_index)
             .context("invalid machine index")?;
+
+        let module = self
+            .info
+            .modules
+            .get(&ModuleName(module.name.0.to_string()))
+            .unwrap()
+            .with_quality(module.quality);
+
         match module.type_ {
             ModuleType::Speed => {}
             ModuleType::Productivity => {
@@ -621,6 +635,7 @@ impl Editor {
                 snippet.beacons = new_beacons
                     .iter()
                     .map(|beacon| BeaconSnippet {
+                        quality: beacon.quality,
                         modules: beacon.modules.iter().map(|m| m.name.clone()).collect_vec(),
                     })
                     .collect_vec();

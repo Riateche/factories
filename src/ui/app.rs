@@ -5,8 +5,8 @@ use {
         flowchart,
         game_data::Recipe,
         info::Info,
-        machine::Module,
-        primitives::{CrafterName, ItemName, ModuleName, Quality, RecipeName, Speed},
+        machine::ModuleType,
+        primitives::{CrafterName, ItemName, ItemNameAndQuality, Quality, RecipeName, Speed},
         ResultExtOrWarn,
     },
     anyhow::{format_err, Context},
@@ -15,7 +15,7 @@ use {
     itertools::Itertools,
     std::{
         borrow::Cow,
-        collections::{BTreeSet, VecDeque},
+        collections::{BTreeMap, BTreeSet, VecDeque},
         env,
         ffi::OsStr,
         path::Path,
@@ -53,9 +53,6 @@ pub struct MyApp {
     // Static data
     pub all_recipe_menu_items: Vec<RecipeMenuItem>,
     pub belt_speeds: Vec<(Speed, ItemName)>,
-    pub default_speed_module: Module,
-    pub default_productivity_module: Module,
-    pub default_quality_module: Module,
 
     // Global
     pub editor: Editor,
@@ -63,6 +60,8 @@ pub struct MyApp {
     pub generation: u64, // used to generate new ids for tooltips when things change to force correct size
     pub alerts: VecDeque<(String, Instant)>,
     pub auto_focus: bool,
+    pub selected_modules: BTreeMap<ModuleType, ItemNameAndQuality>,
+    pub beacon_quality: Quality,
 
     // Save/load
     pub snippet_name: String,
@@ -133,39 +132,30 @@ impl MyApp {
             .collect_vec();
         belt_speeds.sort_by_key(|(speed, _)| *speed);
 
-        fn module_name(prefix: &str, tier: u32) -> ModuleName {
-            if tier == 1 {
-                prefix.into()
-            } else {
-                format!("{prefix}-{tier}").into()
-            }
-        }
-
-        let config = &editor.info().config;
-        let default_speed_module = editor
-            .info()
-            .modules
-            .get(&module_name("speed-module", config.speed_module_tier))
-            .unwrap()
-            .with_quality(config.speed_module_quality);
-        let default_productivity_module = editor
-            .info()
-            .modules
-            .get(&module_name(
-                "productivity-module",
-                config.productivity_module_tier,
-            ))
-            .unwrap()
-            .with_quality(config.productivity_module_quality);
-        let default_quality_module = editor
-            .info()
-            .modules
-            .get(&module_name("quality-module", config.quality_module_tier))
-            .unwrap()
-            .with_quality(config.quality_module_quality);
+        let mut selected_modules = editor.info().config.modules.clone();
+        selected_modules
+            .entry(ModuleType::Speed)
+            .or_insert_with(|| ItemNameAndQuality {
+                name: "speed-module".into(),
+                quality: Quality(0),
+            });
+        selected_modules
+            .entry(ModuleType::Productivity)
+            .or_insert_with(|| ItemNameAndQuality {
+                name: "productivity-module".into(),
+                quality: Quality(0),
+            });
+        selected_modules
+            .entry(ModuleType::Quality)
+            .or_insert_with(|| ItemNameAndQuality {
+                name: "quality-module".into(),
+                quality: Quality(0),
+            });
 
         let mut app = MyApp {
             msg_receiver: ui_msg_receiver,
+            selected_modules,
+            beacon_quality: editor.info().config.beacon_quality,
             editor,
             recipe_search_text: String::new(),
             auto_focus: true,
@@ -185,9 +175,6 @@ impl MyApp {
             replace_with_craft_index: None,
             belt_speeds,
             focus_machine_constraint_input: false,
-            default_speed_module,
-            default_productivity_module,
-            default_quality_module,
             num_beacons: String::new(),
         };
         app.all_recipe_menu_items = app
@@ -209,15 +196,8 @@ impl MyApp {
     ) -> anyhow::Result<()> {
         self.saved = false;
         self.alerts.clear();
-        //for quality in Quality::ALL {
-        self.editor.add_crafter(
-            recipe_name,
-            Quality(0),
-            crafter,
-            None,
-            Some(&self.default_quality_module),
-        )?;
-        //}
+        self.editor
+            .add_crafter(recipe_name, Quality(0), crafter, None, None)?;
         self.recipe_search_text.clear();
         self.after_machines_changed();
         Ok(())

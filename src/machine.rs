@@ -49,11 +49,34 @@ impl Crafter {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ModuleType {
     Speed,
     Productivity,
     Quality,
+}
+
+impl ModuleType {
+    pub fn module_items(self) -> [ItemName; 3] {
+        match self {
+            ModuleType::Speed => [
+                "speed-module".into(),
+                "speed-module-2".into(),
+                "speed-module-3".into(),
+            ],
+            ModuleType::Productivity => [
+                "productivity-module".into(),
+                "productivity-module-2".into(),
+                "productivity-module-3".into(),
+            ],
+            ModuleType::Quality => [
+                "quality-module".into(),
+                "quality-module-2".into(),
+                "quality-module-3".into(),
+            ],
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -112,8 +135,8 @@ impl Module {
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
-#[serde(transparent)]
 pub struct Beacon {
+    pub quality: Quality,
     pub modules: Vec<Module>,
 }
 
@@ -214,17 +237,8 @@ impl Machine {
         }
     }
 
-    pub fn beacon_transmission_strength(&self) -> f64 {
-        if self.beacons.is_empty() {
-            0.0
-        } else {
-            1.5 / (self.beacons.len() as f64).sqrt()
-        }
-    }
-
     // Not including productivity.
     pub fn crafts_per_second(&self) -> Speed {
-        let beacon_transmission_strength = self.beacon_transmission_strength();
         let module_speed_percents: f64 = self
             .modules
             .iter()
@@ -233,11 +247,18 @@ impl Machine {
         let beacon_speed_percents: f64 = self
             .beacons
             .iter()
-            .flat_map(|b| &b.modules)
-            .map(|module| module.speed_delta_percent)
+            .map(|beacon| {
+                let beacon_efficiency = 1.5 + 0.2 * beacon.quality.0 as f64;
+                let transmission_strength = beacon_efficiency / (self.beacons.len() as f64).sqrt();
+                let speed_delta_percent: f64 = beacon
+                    .modules
+                    .iter()
+                    .map(|module| module.speed_delta_percent)
+                    .sum();
+                transmission_strength * speed_delta_percent
+            })
             .sum();
-        let speed_percents =
-            100. + module_speed_percents + beacon_transmission_strength * beacon_speed_percents;
+        let speed_percents = 100. + module_speed_percents + beacon_speed_percents;
 
         ((speed_percents / 100.) * self.crafter.crafting_speed * self.crafter_count
             / self.recipe.energy)
@@ -255,22 +276,12 @@ impl Machine {
 
     pub fn output_speeds(&self) -> Vec<ItemSpeed> {
         let crafts_per_second = self.crafts_per_second();
-        let beacon_transmission_strength = self.beacon_transmission_strength();
         let module_prod_percents: f64 = self
             .modules
             .iter()
             .map(|module| module.productivity_delta_percent)
             .sum();
-        let beacon_prod_percents: f64 = self
-            .beacons
-            .iter()
-            .flat_map(|b| &b.modules)
-            .map(|module| module.productivity_delta_percent)
-            .sum();
-        let prod_percents = 100.
-            + module_prod_percents
-            + beacon_transmission_strength * beacon_prod_percents
-            + self.recipe.productivity_bonus;
+        let prod_percents = 100. + module_prod_percents + self.recipe.productivity_bonus;
 
         let output_speed = (prod_percents / 100.) * crafts_per_second;
 

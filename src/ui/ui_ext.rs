@@ -1,7 +1,7 @@
 use {
     super::app::icon_url,
     crate::primitives::Quality,
-    eframe::egui::{self, vec2, Color32, ComboBox, Image, Response, Sense, Ui, Widget, WidgetText},
+    eframe::egui::{self, vec2, Color32, ComboBox, Image, Response, Sense, Ui, Widget},
     regex::Regex,
     std::hash::Hash,
     tracing::error,
@@ -25,12 +25,7 @@ pub trait UiExt {
     /// @[$lock:Tooltip] - system icon with tooltip
     fn rich_label(&mut self, text: impl Into<String>) -> Response;
 
-    fn quality_dropdown(
-        &mut self,
-        id_salt: impl Hash,
-        label: impl Into<WidgetText>,
-        value: &mut Quality,
-    );
+    fn quality_dropdown(&mut self, id_salt: impl Hash, tooltip: Option<&str>, value: &mut Quality);
 }
 
 impl UiExt for Ui {
@@ -134,18 +129,12 @@ impl UiExt for Ui {
         r
     }
 
-    fn quality_dropdown(
-        &mut self,
-        id_salt: impl Hash,
-        label: impl Into<WidgetText>,
-        value: &mut Quality,
-    ) {
+    fn quality_dropdown(&mut self, id_salt: impl Hash, tooltip: Option<&str>, value: &mut Quality) {
         let ui = self;
-        ui.item_icon(&format!("quality{}", value.0), None, 1.);
-        ComboBox::new(id_salt, label)
-            .selected_text(value.0.to_string())
-            .width(32.)
-            .show_ui(ui, |ui| {
+        ui.scope(|ui| {
+            ui.spacing_mut().item_spacing.x = 0.;
+            ui.item_icon(&format!("quality{}", value.0), tooltip, 1.);
+            ComboBox::new(id_salt, "").width(16.).show_ui(ui, |ui| {
                 ui.horizontal(|ui| {
                     for quality in Quality::ALL {
                         if ui
@@ -157,5 +146,6 @@ impl UiExt for Ui {
                     }
                 });
             });
+        });
     }
 }
