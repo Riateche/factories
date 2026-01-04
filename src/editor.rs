@@ -53,6 +53,8 @@ pub struct Editor {
     machines: Vec<EditorMachine>,
     item_speed_constraints: BTreeMap<ItemNameAndQuality, Speed>,
     solved: bool,
+    auto_add_sources_and_sinks: bool,
+    use_alt_solver: bool,
 }
 
 fn create_crafter(info: &Info, snippet: &CrafterSnippet) -> anyhow::Result<Machine> {
@@ -119,6 +121,8 @@ impl Editor {
             machines: Vec::new(),
             item_speed_constraints: Default::default(),
             solved: true,
+            auto_add_sources_and_sinks: true,
+            use_alt_solver: false,
         })
     }
 
@@ -142,6 +146,8 @@ impl Editor {
         }
         self.machines = machines;
         self.item_speed_constraints = snippet.item_speed_constraints;
+        self.auto_add_sources_and_sinks = snippet.auto_add_sources_and_sinks;
+        self.use_alt_solver = snippet.use_alt_solver;
         self.after_machines_changed();
         Ok(())
     }
@@ -164,7 +170,14 @@ impl Editor {
             .unwrap()
     }
 
-    fn add_source(&mut self, item: &ItemNameAndQuality) -> anyhow::Result<()> {
+    pub fn add_source(&mut self, item: &ItemNameAndQuality) -> anyhow::Result<()> {
+        self.add_source_internal(item)?;
+        self.auto_sort_machines();
+        self.quick_solve();
+        Ok(())
+    }
+
+    fn add_source_internal(&mut self, item: &ItemNameAndQuality) -> anyhow::Result<()> {
         if !self.info.all_items.contains(&item.name) {
             bail!("unknown item: {item:?}");
         }
@@ -180,7 +193,14 @@ impl Editor {
         Ok(())
     }
 
-    fn add_sink(&mut self, item: &ItemNameAndQuality) -> anyhow::Result<()> {
+    pub fn add_sink(&mut self, item: &ItemNameAndQuality) -> anyhow::Result<()> {
+        self.add_sink_internal(item)?;
+        self.auto_sort_machines();
+        self.quick_solve();
+        Ok(())
+    }
+
+    fn add_sink_internal(&mut self, item: &ItemNameAndQuality) -> anyhow::Result<()> {
         if !self.info.all_items.contains(&item.name) {
             bail!("unknown item: {item:?}");
         }
@@ -691,15 +711,27 @@ impl Editor {
             .collect()
     }
 
-    fn can_quick_solve(&self) -> bool {
-        !self
-            .machines
+    pub fn all_inputs(&self) -> BTreeSet<ItemNameAndQuality> {
+        self.machines
             .iter()
-            .any(|m| m.machine.crafter.is_recycler())
+            .flat_map(|m| m.machine.input_speeds().map(|i| i.name_and_quality()))
+            .collect()
+    }
+
+    pub fn all_outputs(&self) -> BTreeSet<ItemNameAndQuality> {
+        self.machines
+            .iter()
+            .flat_map(|m| {
+                m.machine
+                    .output_speeds()
+                    .into_iter()
+                    .map(|i| i.name_and_quality())
+            })
+            .collect()
     }
 
     fn quick_solve(&mut self) {
-        if self.can_quick_solve() {
+        if !self.use_alt_solver {
             let r = self.try_solve();
 
             if let Err(err) = r {
@@ -711,10 +743,10 @@ impl Editor {
     }
 
     pub fn solve(&mut self) {
-        let r = if self.can_quick_solve() {
-            self.try_solve()
-        } else {
+        let r = if self.use_alt_solver {
             self.try_solve_alt()
+        } else {
+            self.try_solve()
         };
 
         if let Err(err) = r {
@@ -843,6 +875,7 @@ impl Editor {
     }
 
     fn try_solve_alt(&mut self) -> anyhow::Result<()> {
+        #[derive(Debug)]
         struct MachineInfo {
             input_speeds: Vec<ItemSpeed>,
             output_speeds: Vec<ItemSpeed>,
@@ -854,7 +887,7 @@ impl Editor {
         }
 
         self.solved = false;
-        let max_count = Amount::from(100_000.);
+        let max_count = Amount::from(10_000.);
         for machine in &mut self.machines {
             machine.machine.crafter_count = 1.;
         }
@@ -887,11 +920,17 @@ impl Editor {
             })
             .collect_vec();
         let mut storage = BTreeMap::<ItemNameAndQuality, Amount>::new();
-        let steps = 100_000;
+        let steps = 5_000;
+        let warmup_end = steps / 5;
         for step in 0..steps {
-            println!("step={step}");
+            println!("step={step}/{steps}");
             for machine in &mut machines {
                 machine.crafter_ticks_on_this_step = 0.0.into();
+            }
+            if step == warmup_end {
+                for machine in &mut machines {
+                    machine.crafter_ticks = 0.0.into();
+                }
             }
             loop {
                 let mut any_progress = false;
@@ -940,6 +979,7 @@ impl Editor {
                         machine.crafter_ticks += 1.0;
                         machine.crafter_ticks_on_this_step += 1.0;
                         any_progress = true;
+                        // println!("progress {:?}", machine);
                     }
                 }
                 if !any_progress {
@@ -949,8 +989,8 @@ impl Editor {
         }
 
         for (machine, info) in self.machines.iter_mut().zip(machines) {
-            println!("\n{}", machine.machine.description());
-            println!("crafter_ticks={:?}", info.crafter_ticks);
+            // println!("\n{}", machine.machine.description());
+            // println!("crafter_ticks={:?}", info.crafter_ticks);
             machine.machine.crafter_count = (info.crafter_ticks / (steps as f64)).into();
         }
 
@@ -958,29 +998,10 @@ impl Editor {
         Ok(())
     }
 
-    // fn input_requirements(&self, item: &ItemNameAndQuality) -> Vec<Vec<ItemNameAndQuality>> {
-    //     let mut options = vec![vec![item.clone()]];
-    //     for machine in &self.machines {
-    //         if machine
-    //             .machine
-    //             .output_speeds()
-    //             .iter()
-    //             .any(|i| &i.name_and_quality() == item)
-    //         {
-    //             options.push(
-    //                 machine
-    //                     .machine
-    //                     .input_speeds()
-    //                     .flat_map(|i| self.input_requirements(&i.name_and_quality()))
-    //                     .collect_vec(),
-    //             );
-    //         }
-    //     }
-
-    //     todo!()
-    // }
-
     fn add_sources_and_sinks(&mut self) -> anyhow::Result<()> {
+        if !self.auto_add_sources_and_sinks {
+            return Ok(());
+        }
         self.machines
             .retain(|m| !m.machine.crafter.is_source_or_sink());
         let items = self.added_items();
@@ -996,28 +1017,12 @@ impl Editor {
                     .into_iter()
                     .any(|i| i.name_and_quality() == item)
             });
-            let any_non_recycler_outputs = self.machines.iter().any(|m| {
-                !m.machine.crafter.is_recycler()
-                    && m.machine
-                        .output_speeds()
-                        .into_iter()
-                        .any(|i| i.name_and_quality() == item)
-            });
-            if any_inputs && !any_non_recycler_outputs {
-                self.add_source(&item)?;
+            if any_inputs && !any_outputs {
+                self.add_source_internal(&item)?;
             } else if !any_inputs && any_outputs {
-                self.add_sink(&item)?;
+                self.add_sink_internal(&item)?;
             }
         }
-        // TMP!
-        // self.add_source(&ItemNameAndQuality {
-        //     name: "iron-plate".into(),
-        //     quality: Quality(0),
-        // })?;
-        // self.add_sink(&ItemNameAndQuality {
-        //     name: "iron-plate".into(),
-        //     quality: Quality(5),
-        // })?;
         Ok(())
     }
 
@@ -1080,10 +1085,32 @@ impl Editor {
         Snippet {
             machines: self.machines.iter().map(|m| m.snippet.clone()).collect(),
             item_speed_constraints: self.item_speed_constraints.clone(),
+            auto_add_sources_and_sinks: self.auto_add_sources_and_sinks,
+            use_alt_solver: self.use_alt_solver,
         }
     }
 
     pub fn item_speed_constraints(&self) -> &BTreeMap<ItemNameAndQuality, Speed> {
         &self.item_speed_constraints
+    }
+
+    pub fn auto_add_sources_and_sinks(&self) -> bool {
+        self.auto_add_sources_and_sinks
+    }
+
+    pub fn set_auto_add_sources_and_sinks(&mut self, value: bool) {
+        self.auto_add_sources_and_sinks = value;
+        if value {
+            self.after_machines_changed();
+        }
+    }
+
+    pub fn use_alt_solver(&self) -> bool {
+        self.use_alt_solver
+    }
+
+    pub fn set_use_alt_solver(&mut self, value: bool) {
+        self.use_alt_solver = value;
+        self.quick_solve();
     }
 }

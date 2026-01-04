@@ -46,6 +46,14 @@ pub struct Snippet {
     pub machines: Vec<MachineSnippet>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub item_speed_constraints: BTreeMap<ItemNameAndQuality, Speed>,
+    #[serde(default = "true_")]
+    pub auto_add_sources_and_sinks: bool,
+    #[serde(default)]
+    pub use_alt_solver: bool,
+}
+
+fn true_() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]

@@ -71,6 +71,10 @@ pub struct MyApp {
     // Add recipe
     pub recipe_search_text: String,
 
+    // Add source/sink
+    pub add_source_item: String,
+    pub add_sink_item: String,
+
     // Machines view
     // (recipe_name_with_machine, display_text)
     pub replace_with_craft_options: Vec<(RecipeMenuItem, String)>,
@@ -176,6 +180,8 @@ impl MyApp {
             belt_speeds,
             focus_machine_constraint_input: false,
             num_beacons: String::new(),
+            add_source_item: String::new(),
+            add_sink_item: String::new(),
         };
         app.all_recipe_menu_items = app
             .editor

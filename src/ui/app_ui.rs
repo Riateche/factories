@@ -145,6 +145,52 @@ impl MyApp {
                     });
                 });
 
+                let mut auto_add_sources_and_sinks = self.editor.auto_add_sources_and_sinks();
+                ui.checkbox(&mut auto_add_sources_and_sinks, "Auto add sources and sinks");
+                if auto_add_sources_and_sinks != self.editor.auto_add_sources_and_sinks() {
+                    self.editor.set_auto_add_sources_and_sinks(auto_add_sources_and_sinks);
+                    self.after_machines_changed();
+                }
+                if !self.editor.auto_add_sources_and_sinks() {
+                    ui.horizontal(|ui| {
+                        ComboBox::new(("add_source_item", self.generation), "")
+                            .selected_text(&self.add_source_item)
+                            .show_ui(ui, |ui| {
+                                for item in self.editor.all_inputs() {
+                                    ui.selectable_value(
+                                        &mut self.add_source_item,
+                                        item.to_string(),
+                                        item.to_string(),
+                                    );
+                                }
+                            });
+                        if ui.button("Add source").clicked() {
+                            if let Ok(item) = self.add_source_item.parse() {
+                                self.editor.add_source(&item).or_warn();
+                                self.after_machines_changed();
+                            }
+                        }
+                        ComboBox::new(("add_sink_item", self.generation), "")
+                            .selected_text(&self.add_sink_item)
+                            .show_ui(ui, |ui| {
+                                for item in self.editor.all_outputs() {
+                                    ui.selectable_value(
+                                        &mut self.add_sink_item,
+                                        item.to_string(),
+                                        item.to_string(),
+                                    );
+                                }
+                            });
+                        if ui.button("Add sink").clicked() {
+                            if let Ok(item) = self.add_sink_item.parse() {
+                                self.editor.add_sink(&item).or_warn();
+                                self.after_machines_changed();
+                            }
+                        }
+                    });
+
+                }
+
                 ui.heading("Machines");
                 let edit_machine_index = self.edit_machine_id.and_then(|id| self.editor.machines().iter().position(|m| m.id() == id));
                 egui::Frame::group(ui.style()).show(ui, |ui| {
@@ -451,6 +497,13 @@ impl MyApp {
                                                 });
                                             if r.clicked() {
                                                 index_to_recycle = Some(i);
+                                            }
+                                        }
+
+                                        if !self.editor.auto_add_sources_and_sinks() {
+                                            let response = ui.button("🗙");
+                                            if response.clicked() {
+                                                index_to_remove = Some(i);
                                             }
                                         }
                                     } else {
@@ -948,11 +1001,18 @@ impl MyApp {
                 });
 
                 ui.add_space(10.0);
+                let mut use_alt_solver = self.editor.use_alt_solver();
+                ui.checkbox(&mut use_alt_solver, "Use alternative solver");
+                if use_alt_solver != self.editor.use_alt_solver() {
+                    self.editor.set_use_alt_solver(use_alt_solver);
+                    self.after_machines_changed();
+                }
+
                 ui.horizontal(|ui| {
                     if ui.button("Open chart").clicked() {
                         self.open_chart().or_warn();
                     }
-                    if ui.button("Solve again").clicked() {
+                    if ui.button("Solve").clicked() {
                         self.alerts.clear();
                         self.editor.solve();
                         self.after_machines_changed();
