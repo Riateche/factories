@@ -8,7 +8,10 @@ use {
             Speed,
         },
         rf,
-        snippet::{BeaconSnippet, CrafterSnippet, MachineSnippet, Snippet, SourceSinkSnippet},
+        snippet::{
+            BeaconSnippet, CrafterSnippet, MachineSnippet, MachineSnippetKind, Snippet,
+            SourceSinkSnippet,
+        },
     },
     anyhow::{bail, ensure, format_err, Context},
     fallible_iterator::{FallibleIterator, IteratorExt},
@@ -126,11 +129,11 @@ impl Editor {
         })
     }
 
-    fn create_machine(&self, snippet: &MachineSnippet) -> anyhow::Result<Machine> {
+    fn create_machine(&self, snippet: &MachineSnippetKind) -> anyhow::Result<Machine> {
         match snippet {
-            MachineSnippet::Source(snippet) => Ok(Machine::new_source(&snippet.item)),
-            MachineSnippet::Sink(snippet) => Ok(Machine::new_sink(&snippet.item)),
-            MachineSnippet::Crafter(snippet) => create_crafter(&self.info, snippet),
+            MachineSnippetKind::Source(snippet) => Ok(Machine::new_source(&snippet.item)),
+            MachineSnippetKind::Sink(snippet) => Ok(Machine::new_sink(&snippet.item)),
+            MachineSnippetKind::Crafter(snippet) => create_crafter(&self.info, snippet),
         }
     }
 
@@ -141,7 +144,7 @@ impl Editor {
             machines.push(EditorMachine {
                 id: EditorMachineId(i as u64),
                 snippet: machine.clone(),
-                machine: self.create_machine(&machine)?,
+                machine: self.create_machine(&machine.kind)?,
             });
         }
         self.machines = machines;
@@ -182,12 +185,15 @@ impl Editor {
             bail!("unknown item: {item:?}");
         }
         self.solved = false;
-        let snippet = MachineSnippet::Source(SourceSinkSnippet { item: item.clone() });
+        let snippet = MachineSnippetKind::Source(SourceSinkSnippet { item: item.clone() });
         let machine = self.create_machine(&snippet)?;
         let id = self.next_machine_id();
         self.machines.push(EditorMachine {
             id,
-            snippet,
+            snippet: MachineSnippet {
+                kind: snippet,
+                count_constraint: None,
+            },
             machine,
         });
         Ok(())
@@ -205,12 +211,15 @@ impl Editor {
             bail!("unknown item: {item:?}");
         }
         self.solved = false;
-        let snippet = MachineSnippet::Sink(SourceSinkSnippet { item: item.clone() });
+        let snippet = MachineSnippetKind::Sink(SourceSinkSnippet { item: item.clone() });
         let machine = self.create_machine(&snippet)?;
         let id = self.next_machine_id();
         self.machines.push(EditorMachine {
             id,
-            snippet,
+            snippet: MachineSnippet {
+                kind: snippet,
+                count_constraint: None,
+            },
             machine,
         });
         Ok(())
@@ -303,28 +312,23 @@ impl Editor {
             beacons: vec![],
             recipe: recipe_name.clone(),
             recipe_quality,
-            count_constraint: None,
         }
         .into();
         let machine = self.create_machine(&snippet)?;
         let id = self.next_machine_id();
         self.machines.push(EditorMachine {
             id,
-            snippet,
+            snippet: MachineSnippet {
+                kind: snippet,
+                count_constraint: if add_auto_constraint {
+                    Some(MachineCount::ONE)
+                } else {
+                    None
+                },
+            },
             machine,
         });
 
-        if add_auto_constraint {
-            if let Some(product) = recipe.products.first() {
-                self.item_speed_constraints.insert(
-                    ItemNameAndQuality {
-                        name: product.name.clone(),
-                        quality: recipe_quality,
-                    },
-                    Speed::ONE,
-                );
-            }
-        }
         self.after_machines_changed();
         Ok(id)
     }
@@ -348,11 +352,11 @@ impl Editor {
             .machines
             .get_mut(index)
             .context("invalid machine index")?;
-        let snippet = match &mut machine.snippet {
-            MachineSnippet::Source(_) | MachineSnippet::Sink(_) => {
+        let snippet = match &mut machine.snippet.kind {
+            MachineSnippetKind::Source(_) | MachineSnippetKind::Sink(_) => {
                 bail!("cannot set crafter for source or sink");
             }
-            MachineSnippet::Crafter(snippet) => snippet,
+            MachineSnippetKind::Crafter(snippet) => snippet,
         };
         let crafters = self
             .info
@@ -388,11 +392,11 @@ impl Editor {
             .machines
             .get_mut(index)
             .context("invalid machine index")?;
-        let snippet = match &mut machine.snippet {
-            MachineSnippet::Source(_) | MachineSnippet::Sink(_) => {
+        let snippet = match &mut machine.snippet.kind {
+            MachineSnippetKind::Source(_) | MachineSnippetKind::Sink(_) => {
                 bail!("cannot set crafter for source or sink");
             }
-            MachineSnippet::Crafter(snippet) => snippet,
+            MachineSnippetKind::Crafter(snippet) => snippet,
         };
         snippet.crafter_quality = quality;
         machine.machine = create_crafter(&self.info, snippet)?;
@@ -406,11 +410,11 @@ impl Editor {
             .machines
             .get_mut(index)
             .context("invalid machine index")?;
-        let snippet = match &mut machine.snippet {
-            MachineSnippet::Source(_) | MachineSnippet::Sink(_) => {
+        let snippet = match &mut machine.snippet.kind {
+            MachineSnippetKind::Source(_) | MachineSnippetKind::Sink(_) => {
                 bail!("cannot set crafter for source or sink");
             }
-            MachineSnippet::Crafter(snippet) => snippet,
+            MachineSnippetKind::Crafter(snippet) => snippet,
         };
         snippet.recipe_quality = quality;
         machine.machine = create_crafter(&self.info, snippet)?;
@@ -424,15 +428,16 @@ impl Editor {
             .machines
             .get_mut(index)
             .context("invalid machine index")?;
-        let snippet = match &mut machine.snippet {
-            MachineSnippet::Source(_) | MachineSnippet::Sink(_) => {
+        let snippet = match &mut machine.snippet.kind {
+            MachineSnippetKind::Source(_) | MachineSnippetKind::Sink(_) => {
                 bail!("cannot set crafter for source or sink");
             }
-            MachineSnippet::Crafter(snippet) => snippet.clone(),
+            MachineSnippetKind::Crafter(snippet) => snippet.clone(),
         };
+        let count_constraint = machine.snippet.count_constraint;
         for quality in Quality::ALL {
             let exists = self.machines.iter().any(|machine| {
-                if let MachineSnippet::Crafter(s) = &machine.snippet {
+                if let MachineSnippetKind::Crafter(s) = &machine.snippet.kind {
                     s.recipe == snippet.recipe && s.recipe_quality == quality
                 } else {
                     false
@@ -441,16 +446,20 @@ impl Editor {
             if exists {
                 continue;
             }
-            let new_snippet = MachineSnippet::Crafter(CrafterSnippet {
+            let new_snippet_kind = MachineSnippetKind::Crafter(CrafterSnippet {
                 recipe_quality: quality,
                 ..snippet.clone()
             });
-            let machine = self.create_machine(&new_snippet)?;
+            let new_machine = self.create_machine(&new_snippet_kind)?;
+            let new_snippet = MachineSnippet {
+                kind: new_snippet_kind,
+                count_constraint,
+            };
             let id = self.next_machine_id();
             self.machines.push(EditorMachine {
                 id,
                 snippet: new_snippet,
-                machine,
+                machine: new_machine,
             });
         }
 
@@ -547,15 +556,7 @@ impl Editor {
             .machines
             .get_mut(index)
             .context("invalid machine index")?;
-        match &mut machine.snippet {
-            MachineSnippet::Source(_) | MachineSnippet::Sink(_) => bail!(
-                "machine count constraint is not allowed for sources \
-                and sinks, use item speed constraint instead"
-            ),
-            MachineSnippet::Crafter(snippet) => {
-                snippet.count_constraint = count;
-            }
-        }
+        machine.snippet.count_constraint = count;
         self.quick_solve();
         Ok(())
     }
@@ -564,12 +565,7 @@ impl Editor {
     fn clear_all_constraints_internal(&mut self) {
         self.item_speed_constraints.clear();
         for machine in &mut self.machines {
-            match &mut machine.snippet {
-                MachineSnippet::Source(_) | MachineSnippet::Sink(_) => {}
-                MachineSnippet::Crafter(snippet) => {
-                    snippet.count_constraint = None;
-                }
-            }
+            machine.snippet.count_constraint = None;
         }
     }
 
@@ -610,11 +606,11 @@ impl Editor {
         {
             bail!("no more space for modules");
         }
-        match &mut machine.snippet {
-            MachineSnippet::Source { .. } | MachineSnippet::Sink { .. } => {
+        match &mut machine.snippet.kind {
+            MachineSnippetKind::Source { .. } | MachineSnippetKind::Sink { .. } => {
                 bail!("modules are not supported for source and sink")
             }
-            MachineSnippet::Crafter(snippet) => {
+            MachineSnippetKind::Crafter(snippet) => {
                 for _ in 0..count {
                     snippet.modules.push(ItemNameAndQuality {
                         name: module.name.as_str().into(),
@@ -639,11 +635,11 @@ impl Editor {
             .machines
             .get_mut(machine_index)
             .context("invalid machine index")?;
-        match &mut machine.snippet {
-            MachineSnippet::Source { .. } | MachineSnippet::Sink { .. } => {
+        match &mut machine.snippet.kind {
+            MachineSnippetKind::Source { .. } | MachineSnippetKind::Sink { .. } => {
                 bail!("modules are not supported for source and sink")
             }
-            MachineSnippet::Crafter(snippet) => {
+            MachineSnippetKind::Crafter(snippet) => {
                 ensure!(module_index < snippet.modules.len(), "invalid module index");
                 if batch {
                     let module_type = snippet.modules[module_index].clone();
@@ -685,11 +681,11 @@ impl Editor {
         {
             bail!("productivity modules are not allowed in beacons");
         }
-        match &mut machine.snippet {
-            MachineSnippet::Source { .. } | MachineSnippet::Sink { .. } => {
+        match &mut machine.snippet.kind {
+            MachineSnippetKind::Source { .. } | MachineSnippetKind::Sink { .. } => {
                 bail!("beacons are not supported for source and sink")
             }
-            MachineSnippet::Crafter(snippet) => {
+            MachineSnippetKind::Crafter(snippet) => {
                 snippet.beacons = new_beacons
                     .iter()
                     .map(|beacon| BeaconSnippet {
@@ -798,11 +794,11 @@ impl Editor {
                 self.machines
                     .iter()
                     .enumerate()
-                    .filter_map(|(index, machine)| match &machine.snippet {
-                        MachineSnippet::Source(_) | MachineSnippet::Sink(_) => None,
-                        MachineSnippet::Crafter(snippet) => snippet
+                    .filter_map(|(index, machine)| {
+                        machine
+                            .snippet
                             .count_constraint
-                            .map(|count| Constraint::MachineCount { index, count }),
+                            .map(|count| Constraint::MachineCount { index, count })
                     }),
             )
             .collect();
@@ -898,27 +894,14 @@ impl Editor {
                 input_speeds: machine.machine.input_speeds().collect(),
                 output_speeds: machine.machine.output_speeds(),
                 is_recycler: machine.machine.crafter.is_recycler(),
-                count_constraint: if let MachineSnippet::Crafter(crafter) = &machine.snippet {
-                    crafter.count_constraint
-                } else if machine.machine.crafter.is_source_or_sink() {
-                    let item = machine
-                        .machine
-                        .input_speeds()
-                        .chain(machine.machine.output_speeds())
-                        .next()
-                        .expect("missing i/o in source or sink")
-                        .name_and_quality();
-
-                    self.item_speed_constraints
-                        .get(&item)
-                        .map(|speed| MachineCount(speed.0))
-                } else {
-                    None
-                },
+                count_constraint: machine.snippet.count_constraint,
                 crafter_ticks: 0.0.into(),
                 crafter_ticks_on_this_step: 0.0.into(),
             })
             .collect_vec();
+        if !machines.iter().any(|m| m.count_constraint.is_some()) {
+            bail!("no machine count constraints specified");
+        }
         let mut storage = BTreeMap::<ItemNameAndQuality, Amount>::new();
         let steps = 5_000;
         let warmup_end = steps / 5;
@@ -979,7 +962,7 @@ impl Editor {
                         machine.crafter_ticks += 1.0;
                         machine.crafter_ticks_on_this_step += 1.0;
                         any_progress = true;
-                        // println!("progress {:?}", machine);
+                        //println!("progress {:?}", machine);
                     }
                 }
                 if !any_progress {

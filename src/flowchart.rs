@@ -1,5 +1,5 @@
 use {
-    crate::{editor::Editor, primitives::Speed, rf, snippet::MachineSnippet},
+    crate::{editor::Editor, primitives::Speed, rf, snippet::MachineSnippetKind},
     itertools::Itertools,
     std::{cmp::min, collections::VecDeque, fmt::Write},
     tracing::warn,
@@ -19,10 +19,10 @@ pub fn generate(editor: &Editor, title: &str) -> String {
     writeln!(out, "flowchart TD").unwrap();
     for (index, editor_machine) in editor.machines().iter().enumerate() {
         let machine = editor_machine.machine();
-        let (left_bracket, right_bracket) = match editor_machine.snippet() {
-            MachineSnippet::Source { .. } => ("[\\", "/]"),
-            MachineSnippet::Sink { .. } => ("[/", "\\]"),
-            MachineSnippet::Crafter { .. } => ("([", "])"),
+        let (left_bracket, right_bracket) = match &editor_machine.snippet().kind {
+            MachineSnippetKind::Source { .. } => ("[\\", "/]"),
+            MachineSnippetKind::Sink { .. } => ("[/", "\\]"),
+            MachineSnippetKind::Crafter { .. } => ("([", "])"),
         };
 
         writeln!(

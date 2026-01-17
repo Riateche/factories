@@ -89,6 +89,10 @@ impl MulAssign<OrderedFloat<f64>> for Speed {
 )]
 pub struct MachineCount(pub OrderedFloat<f64>);
 
+impl MachineCount {
+    pub const ONE: Self = Self(OrderedFloat(1.0));
+}
+
 impl From<f64> for MachineCount {
     fn from(value: f64) -> Self {
         Self(value.into())

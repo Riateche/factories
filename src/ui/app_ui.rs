@@ -8,9 +8,7 @@ use {
         machine::{Beacon, ModuleType},
         module_counts,
         primitives::{CrafterName, ItemNameAndQuality, ModuleName, Quality, RecipeName},
-        rf,
-        snippet::{CrafterSnippet, MachineSnippet},
-        ResultExtOrWarn,
+        rf, ResultExtOrWarn,
     },
     eframe::egui::{self, Color32, ComboBox, Frame, Key},
     egui::{Response, ScrollArea, TextEdit, Ui, Widget},
@@ -235,23 +233,17 @@ impl MyApp {
                                             }
                                         },
                                     );
-                                    let crafter_count = if machine.crafter.is_source_or_sink() {
+                                    let lock = if let Some(constraint) = &editor_machine.snippet().count_constraint {
+                                        format!("@[$lock:Count constrained to {constraint}]")
+                                    } else {
+                                        String::new()
+                                    };
+                                    let crafter_count = if lock.is_empty() && machine.crafter.is_source_or_sink() {
                                         String::new()
                                     } else {
-                                        let lock =
-                                            if let MachineSnippet::Crafter(CrafterSnippet {
-                                                count_constraint: Some(constraint),
-                                                ..
-                                            }) = editor_machine.snippet()
-                                            {
-                                                format!(
-                                                    "@[$lock:Count constrained to {constraint}]"
-                                                )
-                                            } else {
-                                                String::new()
-                                            };
                                         format!("{}{} × ", lock, rf(machine.crafter_count))
                                     };
+
                                     let tooltip = if (machine.recipe.products.len() == 1
                                         && machine.recipe.name.as_str()
                                             == machine.recipe.products[0].name.as_str())
@@ -499,29 +491,13 @@ impl MyApp {
                                                 index_to_recycle = Some(i);
                                             }
                                         }
-
-                                        if !self.editor.auto_add_sources_and_sinks() {
-                                            let response = ui.button("🗙");
-                                            if response.clicked() {
-                                                index_to_remove = Some(i);
-                                            }
-                                        }
-                                    } else {
-                                        // not source or sink
+                                    }
+                                    if !machine.crafter.is_source_or_sink() || !self.editor.auto_add_sources_and_sinks() {
                                         let r = ui.button("Edit");
                                         if r.clicked() {
                                             self.edit_machine_id = Some(editor_machine.id());
                                             self.machine_count_constraint =
-                                                match editor_machine.snippet() {
-                                                    MachineSnippet::Source(_)
-                                                    | MachineSnippet::Sink(_) => {
-                                                        unreachable!()
-                                                    }
-                                                    MachineSnippet::Crafter(crafter) => crafter
-                                                        .count_constraint
-                                                        .map(|c| c.to_string())
-                                                        .unwrap_or_default(),
-                                                };
+                                                editor_machine.snippet().count_constraint.map(|c| c.to_string()).unwrap_or_default();
                                             self.num_beacons = machine.beacons.len().to_string();
                                             self.focus_machine_constraint_input = true;
                                         }
@@ -906,11 +882,7 @@ impl MyApp {
                     }
                     let mut constraint_to_delete2 = None;
                     for (i, machine) in self.editor.machines().iter().enumerate() {
-                        if let MachineSnippet::Crafter(CrafterSnippet {
-                            count_constraint: Some(count),
-                            ..
-                        }) = machine.snippet()
-                        {
+                        if let Some(count) = &machine.snippet().count_constraint {
                             ui.horizontal(|ui| {
                                 ui.rich_label(format!(
                                     "@[$lock:Machine count constraint] {} × @[{}]*(@[{}]*)",

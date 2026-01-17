@@ -7,14 +7,22 @@ use {
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct MachineSnippet {
+    #[serde(flatten)]
+    pub kind: MachineSnippetKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub count_constraint: Option<MachineCount>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "type")]
-pub enum MachineSnippet {
+pub enum MachineSnippetKind {
     Source(SourceSinkSnippet),
     Sink(SourceSinkSnippet),
     Crafter(CrafterSnippet),
 }
 
-impl From<CrafterSnippet> for MachineSnippet {
+impl From<CrafterSnippet> for MachineSnippetKind {
     fn from(value: CrafterSnippet) -> Self {
         Self::Crafter(value)
     }
@@ -35,8 +43,6 @@ pub struct CrafterSnippet {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub beacons: Vec<BeaconSnippet>,
     pub recipe: RecipeName,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub count_constraint: Option<MachineCount>,
     #[serde(default, skip_serializing_if = "Quality::is_zero")]
     pub recipe_quality: Quality,
 }
