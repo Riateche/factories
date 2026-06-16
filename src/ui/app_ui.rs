@@ -555,58 +555,56 @@ impl MyApp {
                                 .get(&self.editor.machines()[i].machine().recipe.category)
                                 .cloned()
                                 .unwrap_or_default();
-                            if crafters.len() > 1 {
-                                ui.horizontal(|ui| {
-                                    ui.label("Change crafter:");
-                                    let mut text =
-                                        self.editor.machines()[i].machine().crafter.name.clone();
-                                    ui.item_icon(
-                                        &self.editor.machines()[i].machine().crafter.name.0,
-                                        None,
-                                        1.,
-                                    );
-                                    ComboBox::new(("change_crafter", self.generation), "")
-                                        .selected_text(
-                                            self.editor.machines()[i]
-                                                .machine()
-                                                .crafter
-                                                .name
-                                                .as_str(),
-                                        )
-                                        .show_ui(ui, |ui| {
-                                            for item in crafters {
-                                                ui.selectable_value(
-                                                    &mut text,
-                                                    item.clone(),
-                                                    item.as_str(),
-                                                );
-                                            }
-                                        });
-                                    if text != self.editor.machines()[i].machine().crafter.name {
-                                        self.saved = false;
-                                        self.alerts.clear();
-                                        self.editor.set_crafter(i, &text).or_warn();
-                                        self.after_machines_changed();
-                                    }
-                                    let mut new_crafter_quality =
-                                        self.editor.machines()[i].machine().crafter.quality;
-                                    ui.quality_dropdown(
-                                        ("crafter_quality", self.generation),
-                                        Some("Crafter quality"),
-                                        &mut new_crafter_quality,
-                                    );
-                                    if new_crafter_quality
-                                        != self.editor.machines()[i].machine().crafter.quality
-                                    {
-                                        self.saved = false;
-                                        self.alerts.clear();
-                                        self.editor
-                                            .set_crafter_quality(i, new_crafter_quality)
-                                            .or_warn();
-                                        self.after_machines_changed();
-                                    }
-                                });
-                            }
+                            ui.horizontal(|ui| {
+                                ui.label("Change crafter:");
+                                let mut text =
+                                    self.editor.machines()[i].machine().crafter.name.clone();
+                                ui.item_icon(
+                                    &self.editor.machines()[i].machine().crafter.name.0,
+                                    None,
+                                    1.,
+                                );
+                                ComboBox::new(("change_crafter", self.generation), "")
+                                    .selected_text(
+                                        self.editor.machines()[i]
+                                            .machine()
+                                            .crafter
+                                            .name
+                                            .as_str(),
+                                    )
+                                    .show_ui(ui, |ui| {
+                                        for item in crafters {
+                                            ui.selectable_value(
+                                                &mut text,
+                                                item.clone(),
+                                                item.as_str(),
+                                            );
+                                        }
+                                    });
+                                if text != self.editor.machines()[i].machine().crafter.name {
+                                    self.saved = false;
+                                    self.alerts.clear();
+                                    self.editor.set_crafter(i, &text).or_warn();
+                                    self.after_machines_changed();
+                                }
+                                let mut new_crafter_quality =
+                                    self.editor.machines()[i].machine().crafter.quality;
+                                ui.quality_dropdown(
+                                    ("crafter_quality", self.generation),
+                                    Some("Crafter quality"),
+                                    &mut new_crafter_quality,
+                                );
+                                if new_crafter_quality
+                                    != self.editor.machines()[i].machine().crafter.quality
+                                {
+                                    self.saved = false;
+                                    self.alerts.clear();
+                                    self.editor
+                                        .set_crafter_quality(i, new_crafter_quality)
+                                        .or_warn();
+                                    self.after_machines_changed();
+                                }
+                            });
                             ui.horizontal(|ui| {
                                 ui.label("Recipe quality:");
                                 let mut new_recipe_quality =
